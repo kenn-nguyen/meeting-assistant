@@ -26,7 +26,6 @@ export function ProfileMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const openNew = useTabs((state) => state.openNew);
   const auth = useAuth();
-  const { isPro } = useBillingAccess();
   const isAuthenticated = !!auth?.session;
 
   const close = useCallback(() => setIsOpen(false), []);
@@ -68,16 +67,12 @@ export function ProfileMenu() {
   ]);
 
   const menuItems = [
-    ...(isPro
-      ? [
-          {
-            icon: FolderOpenIcon,
-            label: "Folders",
-            onClick: handleClickFolders,
-            badge: <Kbd className={kbdClass}>⌘ ⇧ L</Kbd>,
-          },
-        ]
-      : []),
+    {
+      icon: FolderOpenIcon,
+      label: "Folders",
+      onClick: handleClickFolders,
+      badge: <Kbd className={kbdClass}>⌘ ⇧ L</Kbd>,
+    },
     {
       icon: UsersIcon,
       label: "Contacts",

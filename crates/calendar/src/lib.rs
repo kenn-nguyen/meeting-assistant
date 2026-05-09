@@ -135,6 +135,26 @@ pub async fn list_calendars(
     }
 }
 
+pub async fn list_calendars_direct(
+    provider_access_token: &str,
+    provider: CalendarProviderType,
+) -> Result<Vec<CalendarListItem>, Error> {
+    match provider {
+        CalendarProviderType::Apple => {
+            let calendars = list_apple_calendars()?;
+            Ok(convert::convert_apple_calendars(calendars))
+        }
+        CalendarProviderType::Google => {
+            let calendars = fetch::list_google_calendars_direct(provider_access_token).await?;
+            Ok(convert::convert_google_calendars(calendars))
+        }
+        CalendarProviderType::Outlook => {
+            let calendars = fetch::list_outlook_calendars_direct(provider_access_token).await?;
+            Ok(convert::convert_outlook_calendars(calendars))
+        }
+    }
+}
+
 pub async fn list_events(
     api_base_url: &str,
     access_token: &str,
@@ -159,6 +179,29 @@ pub async fn list_events(
             let events =
                 fetch::list_outlook_events(api_base_url, access_token, connection_id, filter)
                     .await?;
+            Ok(convert::convert_outlook_events(events, &calendar_id))
+        }
+    }
+}
+
+pub async fn list_events_direct(
+    provider_access_token: &str,
+    provider: CalendarProviderType,
+    filter: EventFilter,
+) -> Result<Vec<CalendarEvent>, Error> {
+    match provider {
+        CalendarProviderType::Apple => {
+            let events = list_apple_events(filter)?;
+            Ok(convert::convert_apple_events(events))
+        }
+        CalendarProviderType::Google => {
+            let calendar_id = filter.calendar_tracking_id.clone();
+            let events = fetch::list_google_events_direct(provider_access_token, filter).await?;
+            Ok(convert::convert_google_events(events, &calendar_id))
+        }
+        CalendarProviderType::Outlook => {
+            let calendar_id = filter.calendar_tracking_id.clone();
+            let events = fetch::list_outlook_events_direct(provider_access_token, filter).await?;
             Ok(convert::convert_outlook_events(events, &calendar_id))
         }
     }

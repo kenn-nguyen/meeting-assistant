@@ -12,6 +12,11 @@ Default permissions for the plugin
 - `allow-open-calendar`
 - `allow-create-event`
 - `allow-parse-meeting-link`
+- `allow-begin-oauth`
+- `allow-begin-loopback-oauth`
+- `allow-complete-oauth`
+- `allow-list-oauth-accounts`
+- `allow-disconnect-oauth-account`
 
 ## Permission Table
 
@@ -51,6 +56,84 @@ Denies the available_providers command without any pre-configured scope.
 <tr>
 <td>
 
+`calendar:allow-begin-loopback-oauth`
+
+</td>
+<td>
+
+Enables the begin_loopback_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-begin-loopback-oauth`
+
+</td>
+<td>
+
+Denies the begin_loopback_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-begin-oauth`
+
+</td>
+<td>
+
+Enables the begin_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-begin-oauth`
+
+</td>
+<td>
+
+Denies the begin_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-complete-oauth`
+
+</td>
+<td>
+
+Enables the complete_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-complete-oauth`
+
+</td>
+<td>
+
+Denies the complete_oauth command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `calendar:allow-create-event`
 
 </td>
@@ -70,6 +153,32 @@ Enables the create_event command without any pre-configured scope.
 <td>
 
 Denies the create_event command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-disconnect-oauth-account`
+
+</td>
+<td>
+
+Enables the disconnect_oauth_account command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-disconnect-oauth-account`
+
+</td>
+<td>
+
+Denies the disconnect_oauth_account command without any pre-configured scope.
 
 </td>
 </tr>
@@ -174,6 +283,32 @@ Enables the list_events command without any pre-configured scope.
 <td>
 
 Denies the list_events command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:allow-list-oauth-accounts`
+
+</td>
+<td>
+
+Enables the list_oauth_accounts command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`calendar:deny-list-oauth-accounts`
+
+</td>
+<td>
+
+Denies the list_oauth_accounts command without any pre-configured scope.
 
 </td>
 </tr>

@@ -110,10 +110,15 @@ function HyprProviderCard({
 
   const whispercppModels =
     supportedModels.data?.filter((m) => m.model_type === "whispercpp") ?? [];
+  const argmaxModels =
+    supportedModels.data?.filter((m) => m.model_type === "argmax") ?? [];
   const cactusModels =
     supportedModels.data?.filter((m) => m.model_type === "cactus") ?? [];
 
-  const hasLocalModels = whispercppModels.length > 0 || cactusModels.length > 0;
+  const hasLocalModels =
+    whispercppModels.length > 0 ||
+    argmaxModels.length > 0 ||
+    cactusModels.length > 0;
 
   const providerDef = PROVIDERS.find((p) => p.id === providerId);
   const isConfigured = providerDef?.requirements.length === 0;
@@ -157,7 +162,7 @@ function HyprProviderCard({
 
               <StyledStreamdown>
                 {
-                  "We intentionally **disable realtime transcription** for local models to ensure the best experience.\n\nAudio will be **batch processed** after recording is done."
+                  "Choose **Parakeet** for fast English, **Whisper** for multilingual coverage, and **Advanced** models when you can trade setup time for higher accuracy."
                 }
               </StyledStreamdown>
 
@@ -172,6 +177,7 @@ function HyprProviderCard({
                         key={model.key as string}
                         model={model.key}
                         displayName={model.display_name}
+                        description={model.description}
                       />
                     ))}
                 </>
@@ -188,6 +194,7 @@ function HyprProviderCard({
                         key={model.key as string}
                         model={model.key}
                         displayName={model.display_name}
+                        description={model.description}
                       />
                     ))}
                 </>
@@ -197,6 +204,20 @@ function HyprProviderCard({
                 <>
                   <ModelGroupLabel label="WhisperCPP" />
                   {whispercppModels.map((model) => (
+                    <HyprProviderLocalRow
+                      key={model.key as string}
+                      model={model.key}
+                      displayName={model.display_name}
+                      description={model.description}
+                    />
+                  ))}
+                </>
+              )}
+
+              {argmaxModels.length > 0 && (
+                <>
+                  <ModelGroupLabel label="ArgMax" />
+                  {argmaxModels.map((model) => (
                     <HyprProviderLocalRow
                       key={model.key as string}
                       model={model.key}
@@ -217,9 +238,11 @@ function HyprProviderCard({
 function CactusRow({
   model,
   displayName,
+  description,
 }: {
   model: LocalModel;
   displayName: string;
+  description: string;
 }) {
   const handleSelectModel = useSafeSelectModel();
   const { shouldHighlightDownload } = useSttSettings();
@@ -247,8 +270,10 @@ function CactusRow({
     <HyprProviderRow>
       <div className="flex-1">
         <span className="text-sm font-medium">{displayName}</span>
-        {hasError && errorMessage && (
+        {hasError && errorMessage ? (
           <p className="text-xs text-red-500">{errorMessage}</p>
+        ) : (
+          <p className="text-xs text-neutral-500">{description}</p>
         )}
       </div>
 

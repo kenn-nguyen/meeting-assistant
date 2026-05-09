@@ -4,9 +4,14 @@ import { useEffect } from "react";
 import { useScheduleTaskRunCallback } from "tinytick/ui-react";
 
 import { events as deeplink2Events } from "@hypr/plugin-deeplink2";
+import { commands as calendarCommands } from "@hypr/plugin-calendar";
 import { dismissInstruction } from "@hypr/plugin-windows";
 
 import { useAuth } from "~/auth";
+import {
+  calendarOAuthRedirectUri,
+  providerIdFromOAuthProvider,
+} from "~/calendar/local-oauth";
 import { CALENDAR_SYNC_TASK_ID } from "~/services/calendar";
 import { useTabs } from "~/store/zustand/tabs";
 
@@ -65,6 +70,35 @@ export function useDeeplinkHandler() {
             }
           });
         }
+      } else if (payload.to === "/calendar/oauth/callback") {
+        const { provider, code, state, error } = payload.search;
+        const providerId = providerIdFromOAuthProvider(provider);
+        if (!providerId || error || !code || !state) {
+          return;
+        }
+
+        void calendarOAuthRedirectUri(providerId)
+          .then((redirectUri) =>
+            calendarCommands.completeOauth(providerId, code, state, redirectUri),
+          )
+          .then((result) => {
+            if (result.status === "ok") {
+              void queryClient.invalidateQueries({
+                queryKey: ["local-calendar-connections"],
+              });
+              refreshIntegrationState();
+              for (const delay of [1000, 3000]) {
+                const timeoutId = window.setTimeout(() => {
+                  timeoutIds.delete(timeoutId);
+                  refreshIntegrationState();
+                }, delay);
+                timeoutIds.add(timeoutId);
+              }
+              void dismissInstruction().then(() => openNew({ type: "calendar" }));
+            } else {
+              console.error(`[deeplink] calendar OAuth failed: ${result.error}`);
+            }
+          });
       }
     });
 

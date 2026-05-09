@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    LocalModel, LocalSttPluginExt, SUPPORTED_MODELS, ServerInfo, SttModelInfo, server::ServerType,
-    stt_model_info,
+    LocalModel, LocalSttPluginExt, SUPPORTED_MODELS, ServerInfo, SttModelInfo,
+    is_startable_on_current_runtime, server::ServerType, stt_model_info,
 };
 
 #[tauri::command]
@@ -29,6 +29,7 @@ pub async fn list_supported_models() -> Result<Vec<SttModelInfo>, String> {
     Ok(SUPPORTED_MODELS
         .iter()
         .filter(|m| m.is_available_on_current_platform())
+        .filter(|m| is_startable_on_current_runtime(m))
         .map(stt_model_info)
         .collect())
 }

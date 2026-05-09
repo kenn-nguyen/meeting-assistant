@@ -1,11 +1,13 @@
 mod commands;
 mod error;
 mod events;
+mod oauth;
 mod runtime;
 
 pub use error::Error;
 pub use events::*;
 pub use hypr_calendar::ProviderConnectionIds;
+pub use oauth::{LocalCalendarAccount, LocalCalendarAccountStatus};
 
 pub(crate) struct PluginConfig {
     pub api_base_url: String,
@@ -25,7 +27,15 @@ fn make_specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::open_calendar::<tauri::Wry>,
             commands::create_event::<tauri::Wry>,
             commands::parse_meeting_link,
+            commands::begin_oauth::<tauri::Wry>,
+            commands::begin_loopback_oauth::<tauri::Wry>,
+            commands::complete_oauth::<tauri::Wry>,
+            commands::list_oauth_accounts::<tauri::Wry>,
+            commands::disconnect_oauth_account::<tauri::Wry>,
         ])
+        .typ::<commands::LoopbackOAuthStart>()
+        .typ::<oauth::LocalCalendarAccount>()
+        .typ::<oauth::LocalCalendarAccountStatus>()
         .events(tauri_specta::collect_events![CalendarChangedEvent])
         .error_handling(tauri_specta::ErrorHandlingMode::Result)
 }
@@ -42,6 +52,11 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             hypr_calendar::start(runtime::TauriCalendarRuntime(app.app_handle().clone()));
 
             use tauri::Manager;
+            let oauth_path = app.path().app_local_data_dir()?.join("calendar-oauth.json");
+            if let Some(parent) = oauth_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            app.manage(oauth::LocalCalendarOAuthStore::load(oauth_path));
             app.manage(PluginConfig { api_base_url });
             Ok(())
         })

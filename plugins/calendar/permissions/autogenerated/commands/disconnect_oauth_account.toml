@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-disconnect-oauth-account"
+description = "Enables the disconnect_oauth_account command without any pre-configured scope."
+commands.allow = ["disconnect_oauth_account"]
+
+[[permission]]
+identifier = "deny-disconnect-oauth-account"
+description = "Denies the disconnect_oauth_account command without any pre-configured scope."
+commands.deny = ["disconnect_oauth_account"]

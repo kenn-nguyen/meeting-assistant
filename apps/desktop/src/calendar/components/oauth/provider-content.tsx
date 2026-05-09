@@ -1,11 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
-import type { ConnectionItem } from "@hypr/api-client";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@hypr/ui/components/ui/tooltip";
+import { commands as calendarCommands } from "@hypr/plugin-calendar";
 
 import {
   OAuthCalendarSelection,
@@ -13,73 +9,26 @@ import {
 } from "./calendar-selection";
 import { ReconnectRequiredIndicator } from "./status";
 
-import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
-import { useConnections } from "~/auth/useConnections";
 import type { CalendarProvider } from "~/calendar/components/shared";
-import { openIntegrationUrl } from "~/shared/integration";
+import {
+  connectLocalCalendarProvider,
+  type LocalCalendarConnection,
+  useLocalProviderConnections,
+} from "~/calendar/local-oauth";
 
 export function OAuthProviderContent({
   config,
-  returnTo = "calendar",
 }: {
   config: CalendarProvider;
   returnTo?: string;
 }) {
-  const auth = useAuth();
-  const { isPro, upgradeToPro } = useBillingAccess();
-  const { data: connections, isError } = useConnections(isPro);
-  const providerConnections = useMemo(
-    () =>
-      connections?.filter(
-        (c) => c.integration_id === config.nangoIntegrationId,
-      ) ?? [],
-    [connections, config.nangoIntegrationId],
-  );
+  const { data: providerConnections, isError, error } =
+    useLocalProviderConnections(config);
 
   const handleAddAccount = useCallback(
-    () =>
-      openIntegrationUrl(
-        config.nangoIntegrationId,
-        undefined,
-        "connect",
-        returnTo,
-      ),
-    [config.nangoIntegrationId, returnTo],
+    () => connectLocalCalendarProvider(config.id),
+    [config.id],
   );
-
-  if (!auth.session) {
-    return (
-      <div className="pt-1 pb-2">
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <span
-              tabIndex={0}
-              className="cursor-not-allowed text-xs text-neutral-400 opacity-50"
-            >
-              Connect {config.displayName} Calendar
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            Sign in to connect your calendar
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    );
-  }
-
-  if (!isPro) {
-    return (
-      <div className="pt-1 pb-2">
-        <button
-          onClick={upgradeToPro}
-          className="cursor-pointer text-xs text-neutral-600 underline transition-colors hover:text-neutral-900"
-        >
-          Upgrade to connect
-        </button>
-      </div>
-    );
-  }
 
   if (providerConnections.length > 0) {
     const reconnectRequired = providerConnections.filter(
@@ -92,22 +41,8 @@ export function OAuthProviderContent({
           <ReconnectRequiredContent
             key={connection.connection_id}
             config={config}
-            onReconnect={() =>
-              openIntegrationUrl(
-                config.nangoIntegrationId,
-                connection.connection_id,
-                "reconnect",
-                returnTo,
-              )
-            }
-            onDisconnect={() =>
-              openIntegrationUrl(
-                config.nangoIntegrationId,
-                connection.connection_id,
-                "disconnect",
-                returnTo,
-              )
-            }
+            onReconnect={() => connectLocalCalendarProvider(config.id)}
+            connectionId={connection.connection_id}
             errorDescription={connection.last_error_description ?? null}
           />
         ))}
@@ -115,17 +50,18 @@ export function OAuthProviderContent({
         <ConnectedContent
           config={config}
           connections={providerConnections}
-          returnTo={returnTo}
         />
       </div>
     );
   }
 
   if (isError) {
+    const errorMessage = error instanceof Error ? error.message : undefined;
+
     return (
       <div className="pt-1 pb-2">
-        <span className="text-xs text-red-600">
-          Failed to load integration status
+        <span className="text-xs text-red-600" title={errorMessage}>
+          Failed to load local calendar accounts
         </span>
       </div>
     );
@@ -146,14 +82,30 @@ export function OAuthProviderContent({
 function ReconnectRequiredContent({
   config,
   onReconnect,
-  onDisconnect,
+  connectionId,
   errorDescription,
 }: {
   config: CalendarProvider;
   onReconnect: () => void;
-  onDisconnect: () => void;
+  connectionId: string;
   errorDescription: string | null;
 }) {
+  const queryClient = useQueryClient();
+  const handleDisconnect = useCallback(async () => {
+    const result = await calendarCommands.disconnectOauthAccount(
+      config.id as "google" | "outlook",
+      connectionId,
+    );
+    if (result.status === "ok") {
+      await queryClient.invalidateQueries({
+        queryKey: ["local-calendar-connections"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["integration-status"],
+      });
+    }
+  }, [config.id, connectionId, queryClient]);
+
   return (
     <div className="flex flex-col gap-2 pb-2">
       <div className="flex items-center gap-2 text-xs text-amber-700">
@@ -174,7 +126,7 @@ function ReconnectRequiredContent({
         </button>
         <span className="text-xs text-neutral-400">or</span>
         <button
-          onClick={onDisconnect}
+          onClick={handleDisconnect}
           className="cursor-pointer text-xs text-red-500 underline transition-colors hover:text-red-700"
         >
           Disconnect
@@ -187,12 +139,11 @@ function ReconnectRequiredContent({
 function ConnectedContent({
   config,
   connections,
-  returnTo,
 }: {
   config: CalendarProvider;
-  connections: ConnectionItem[];
-  returnTo: string;
+  connections: LocalCalendarConnection[];
 }) {
+  const queryClient = useQueryClient();
   const {
     groups,
     connectionSourceMap,
@@ -218,35 +169,33 @@ function ConnectedContent({
             {
               id: `reconnect-${connection.connection_id}`,
               text: "Reconnect",
-              action: () =>
-                void openIntegrationUrl(
-                  config.nangoIntegrationId,
-                  connection.connection_id,
-                  "reconnect",
-                  returnTo,
-                ),
+              action: () => void connectLocalCalendarProvider(config.id),
             },
             {
               id: `disconnect-${connection.connection_id}`,
               text: "Disconnect",
-              action: () =>
-                void openIntegrationUrl(
-                  config.nangoIntegrationId,
-                  connection.connection_id,
-                  "disconnect",
-                  returnTo,
-                ),
+              action: () => {
+                void calendarCommands
+                  .disconnectOauthAccount(
+                    config.id as "google" | "outlook",
+                    connection.connection_id,
+                  )
+                  .then(() =>
+                    queryClient.invalidateQueries({
+                      queryKey: ["local-calendar-connections"],
+                    }),
+                  )
+                  .then(() =>
+                    queryClient.invalidateQueries({
+                      queryKey: ["integration-status"],
+                    }),
+                  );
+              },
             },
           ],
         };
       }),
-    [
-      config.nangoIntegrationId,
-      connectionSourceMap,
-      connections,
-      groups,
-      returnTo,
-    ],
+    [config.id, connectionSourceMap, connections, groups, queryClient],
   );
 
   return (

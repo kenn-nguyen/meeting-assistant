@@ -27,6 +27,20 @@ fn get_client() -> &'static reqwest::Client {
     CLIENT.get_or_init(reqwest::Client::new)
 }
 
+async fn verify_range_requests(url: reqwest::Url) -> Result<bool, Error> {
+    let response = get_client()
+        .get(url)
+        .header("Range", "bytes=0-0")
+        .send()
+        .await?;
+
+    Ok(response.status() == StatusCode::PARTIAL_CONTENT)
+}
+
+fn should_skip_parallel_download(url: &reqwest::Url) -> bool {
+    matches!(url.domain(), Some("huggingface.co"))
+}
+
 /// Makes a request with optional range header and returns the response.
 /// This function can be used to test range request behavior.
 pub async fn request_with_range(
@@ -317,8 +331,18 @@ pub async fn download_file_parallel_cancellable<F: Fn(DownloadProgress) + Send +
         .unwrap_or("")
         == "bytes";
 
-    // Fall back to sequential download if ranges not supported or file is small
-    if !supports_ranges || total_size.unwrap_or(0) <= DEFAULT_CHUNK_SIZE {
+    let total_size_value = total_size.unwrap_or(0);
+    let skip_parallel = should_skip_parallel_download(&url);
+    let verified_ranges =
+        if !skip_parallel && supports_ranges && total_size_value > DEFAULT_CHUNK_SIZE {
+            verify_range_requests(url.clone()).await?
+        } else {
+            false
+        };
+
+    // Fall back to sequential download if ranges are not actually supported or file is small.
+    // Some hosts advertise Accept-Ranges on HEAD but return 200 OK to ranged GET requests.
+    if !verified_ranges || total_size_value <= DEFAULT_CHUNK_SIZE {
         return download_file_with_callback_cancellable(
             url,
             output_path,
@@ -735,6 +759,57 @@ mod tests {
         let content = std::fs::read(temp_path).unwrap();
         assert_eq!(content, b"FULL_CONTENT");
         assert_eq!(content.len(), 12);
+    }
+
+    #[tokio::test]
+    async fn test_parallel_download_falls_back_when_range_probe_returns_200() {
+        use tempfile::NamedTempFile;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let content = vec![7u8; DEFAULT_CHUNK_SIZE as usize + 1];
+        let content_length = content.len().to_string();
+
+        Mock::given(method("HEAD"))
+            .and(path("/large-file"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("Content-Length", content_length.as_str())
+                    .insert_header("Accept-Ranges", "bytes"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/large-file"))
+            .and(header("Range", "bytes=0-0"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_bytes(content.clone())
+                    .insert_header("Content-Length", content_length.as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/large-file"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_bytes(content.clone())
+                    .insert_header("Content-Length", content_length.as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let url = format!("{}/large-file", mock_server.uri());
+
+        let result = download_file_parallel(&url, temp_file.path(), |_| {}).await;
+        assert!(result.is_ok());
+
+        let downloaded = std::fs::read(temp_file.path()).unwrap();
+        assert_eq!(downloaded, content);
     }
 
     #[tokio::test]

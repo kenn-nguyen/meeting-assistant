@@ -2,9 +2,7 @@ import { CalendarIcon, Puzzle, Sparkle } from "lucide-react";
 
 import { cn } from "@hypr/utils";
 
-import { OnboardingButton, OnboardingCharIcon } from "../shared";
-
-import { useAuth } from "~/auth";
+import { OnboardingButton } from "../shared";
 
 const FEATURES = [
   {
@@ -29,9 +27,7 @@ const FEATURES = [
   },
 ] as const;
 
-export function BeforeLogin({ onContinue: _ }: { onContinue: () => void }) {
-  const auth = useAuth();
-
+export function BeforeLogin({ onContinue }: { onContinue: () => void }) {
   return (
     <div className="flex flex-col">
       <div className="mb-8 flex flex-col items-start justify-start gap-8 py-4">
@@ -43,24 +39,11 @@ export function BeforeLogin({ onContinue: _ }: { onContinue: () => void }) {
       <div className="flex flex-col items-start">
         <div className="flex flex-row items-center gap-4">
           <OnboardingButton
-            onClick={() => {
-              void auth?.signIn();
-            }}
+            onClick={onContinue}
             className="flex items-center gap-2 px-8 py-3 text-base"
           >
-            <OnboardingCharIcon inverted />
-            Get started for free
+            Continue locally
           </OnboardingButton>
-
-          <button
-            type="button"
-            onClick={() => {
-              void auth?.signIn();
-            }}
-            className="text-md rounded-full border border-neutral-300 bg-transparent px-8 py-3 font-medium text-neutral-500 transition-colors hover:text-neutral-700"
-          >
-            Login with existing account
-          </button>
         </div>
       </div>
     </div>

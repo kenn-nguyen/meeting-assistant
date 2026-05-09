@@ -21,8 +21,14 @@ export function FloatingActionButton({
   }
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
-      {shouldShowListen ? <ListenButton tab={tab} /> : <ChatCTA />}
+    <div
+      className={
+        shouldShowListen
+          ? "absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+          : "absolute right-6 bottom-4 z-20"
+      }
+    >
+      {shouldShowListen ? <ListenButton tab={tab} /> : <ChatCTA iconOnly />}
     </div>
   );
 }

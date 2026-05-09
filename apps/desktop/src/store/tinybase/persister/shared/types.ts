@@ -1,4 +1,5 @@
 import type { ParsedDocument } from "@hypr/plugin-fs-sync";
+import type { RenderTranscriptRequest } from "@hypr/plugin-transcription";
 import { SCHEMA } from "@hypr/store";
 
 import type { Store } from "~/store/tinybase/store/main";
@@ -10,7 +11,17 @@ export type TablesContent = Partial<ReturnType<Store["getTables"]>>;
 export type WriteOperation =
   | { type: "write-json"; path: string; content: unknown }
   | { type: "write-document-batch"; items: Array<[ParsedDocument, string]> }
+  | {
+      type: "write-transcript-markdown-batch";
+      items: TranscriptMarkdownWriteItem[];
+    }
   | { type: "delete"; paths: string[] };
+
+export type TranscriptMarkdownWriteItem = {
+  sessionId: string;
+  path: string;
+  request: RenderTranscriptRequest;
+};
 
 export type SaveResult = {
   operations: WriteOperation[];

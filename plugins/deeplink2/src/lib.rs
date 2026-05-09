@@ -8,7 +8,8 @@ mod docs;
 
 pub use error::{Error, Result};
 pub use types::{
-    AuthCallbackSearch, BillingRefreshSearch, DeepLink, DeepLinkEvent, IntegrationCallbackSearch,
+    AuthCallbackSearch, BillingRefreshSearch, CalendarOAuthCallbackSearch, DeepLink, DeepLinkEvent,
+    IntegrationCallbackSearch,
 };
 
 use std::str::FromStr;

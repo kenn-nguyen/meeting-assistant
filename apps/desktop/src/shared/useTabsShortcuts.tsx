@@ -1,7 +1,6 @@
 import { useHotkeys } from "react-hotkeys-hook";
 import { useShallow } from "zustand/shallow";
 
-import { useBillingAccess } from "~/auth/billing";
 import { useShell } from "~/contexts/shell";
 import { useNewNote, useNewNoteAndListen } from "~/shared/useNewNote";
 import { useTabs } from "~/store/zustand/tabs";
@@ -36,7 +35,6 @@ export function useMainTabsShortcuts({ onModT }: { onModT: () => void }) {
   const liveSessionId = useListener((state) => state.live.sessionId);
   const liveStatus = useListener((state) => state.live.status);
   const isListening = liveStatus === "active" || liveStatus === "finalizing";
-  const { isPro } = useBillingAccess();
   const { chat } = useShell();
 
   const newNote = useNewNote();
@@ -199,10 +197,6 @@ export function useMainTabsShortcuts({ onModT }: { onModT: () => void }) {
   useHotkeys(
     "mod+shift+l",
     () => {
-      if (!isPro) {
-        return;
-      }
-
       openNew({ type: "folders", id: null });
     },
     {
@@ -210,7 +204,7 @@ export function useMainTabsShortcuts({ onModT }: { onModT: () => void }) {
       enableOnFormTags: true,
       enableOnContentEditable: true,
     },
-    [isPro, openNew],
+    [openNew],
   );
 
   const newNoteAndListen = useNewNoteAndListen();

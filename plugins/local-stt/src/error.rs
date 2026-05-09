@@ -24,7 +24,7 @@ pub enum Error {
     SupervisorNotFound,
     #[error("AM API key not set")]
     AmApiKeyNotSet,
-    #[error("Internal server only supports Whisper models")]
+    #[error("Unsupported local STT model for this runtime")]
     UnsupportedModelType,
     #[error("Model delete failed: {0}")]
     ModelDeleteFailed(String),

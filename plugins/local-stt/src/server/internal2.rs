@@ -121,15 +121,19 @@ impl Actor for Internal2STTActor {
                     hypr_transcribe_cactus::HEALTH_PATH,
                 );
 
+                let mut error_message = None;
                 let status = match reqwest::get(&health_url).await {
                     Ok(resp) if resp.status().is_success() => {
                         match resp.json::<CactusServiceHealth>().await {
-                            Ok(health) => match health.status {
-                                CactusServiceStatus::Idle => ServerStatus::Loading,
-                                CactusServiceStatus::Loading => ServerStatus::Loading,
-                                CactusServiceStatus::Ready => ServerStatus::Ready,
-                                CactusServiceStatus::Failed => ServerStatus::Unreachable,
-                            },
+                            Ok(health) => {
+                                error_message = health.error;
+                                match health.status {
+                                    CactusServiceStatus::Idle => ServerStatus::Loading,
+                                    CactusServiceStatus::Loading => ServerStatus::Loading,
+                                    CactusServiceStatus::Ready => ServerStatus::Ready,
+                                    CactusServiceStatus::Failed => ServerStatus::Failed,
+                                }
+                            }
                             Err(error) => {
                                 tracing::warn!(error = %error, "failed_to_parse_internal2_health");
                                 ServerStatus::Unreachable
@@ -154,6 +158,7 @@ impl Actor for Internal2STTActor {
                     )),
                     status,
                     model: Some(crate::LocalModel::Cactus(state.model.clone())),
+                    error: error_message,
                 };
 
                 if let Err(e) = reply_port.send(info) {

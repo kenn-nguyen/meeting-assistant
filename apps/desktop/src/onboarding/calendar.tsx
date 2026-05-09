@@ -1,17 +1,13 @@
 import { platform } from "@tauri-apps/plugin-os";
-import { motion } from "motion/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 
-import type { ConnectionItem } from "@hypr/api-client";
-import { commands as openerCommands } from "@hypr/plugin-opener2";
+import { commands as calendarCommands } from "@hypr/plugin-calendar";
 
-import { OnboardingButton, OnboardingCharIcon } from "./shared";
+import { OnboardingButton } from "./shared";
 
-import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
-import { useConnections } from "~/auth/useConnections";
 import { useAppleCalendarSelection } from "~/calendar/components/apple/calendar-selection";
-import { TroubleShootingLink } from "~/calendar/components/apple/permission";
+import { AppleCalendarPermissionHelp } from "~/calendar/components/apple/permission";
 import {
   type CalendarGroup,
   CalendarSelection,
@@ -21,34 +17,19 @@ import { useOAuthCalendarSelection } from "~/calendar/components/oauth/calendar-
 import { ReconnectRequiredIndicator } from "~/calendar/components/oauth/status";
 import { PROVIDERS } from "~/calendar/components/shared";
 import { useEnabledCalendars } from "~/calendar/hooks";
+import {
+  connectLocalCalendarProvider,
+  localIntegrationId,
+  type LocalCalendarConnection,
+  useLocalCalendarConnections,
+} from "~/calendar/local-oauth";
 import { useMountEffect } from "~/shared/hooks/useMountEffect";
 import { usePermission } from "~/shared/hooks/usePermissions";
-import { buildWebAppUrl } from "~/shared/utils";
 
 const GOOGLE_PROVIDER = PROVIDERS.find((provider) => provider.id === "google");
 const OUTLOOK_PROVIDER = PROVIDERS.find(
   (provider) => provider.id === "outlook",
 );
-
-async function openOnboardingIntegrationUrl(
-  nangoIntegrationId: string | undefined,
-  connectionId: string | undefined,
-  action: "connect" | "reconnect" | "disconnect",
-) {
-  if (!nangoIntegrationId) return;
-
-  const params: Record<string, string> = {
-    action,
-    integration_id: nangoIntegrationId,
-  };
-
-  if (connectionId) {
-    params.connection_id = connectionId;
-  }
-
-  const url = await buildWebAppUrl("/app/integration", params);
-  await openerCommands.openUrl(url, null);
-}
 
 function getCalendarSelectionKey(groups: CalendarGroup[]) {
   return groups.length === 0
@@ -83,14 +64,20 @@ function AppleCalendarList() {
 function AppleCalendarProvider({
   isAuthorized,
   isPending,
+  status,
+  onOpen,
   onRequest,
   onTroubleshoot,
 }: {
   isAuthorized: boolean;
   isPending: boolean;
+  status: ReturnType<typeof usePermission>["status"];
+  onOpen: () => void;
   onRequest: () => void;
   onTroubleshoot: () => void;
 }) {
+  const isDenied = status === "denied";
+
   return (
     <div className="flex flex-col gap-3">
       {isAuthorized ? (
@@ -99,7 +86,11 @@ function AppleCalendarProvider({
         <OnboardingButton
           onClick={() => {
             onTroubleshoot();
-            onRequest();
+            if (isDenied) {
+              onOpen();
+            } else {
+              onRequest();
+            }
           }}
           disabled={isPending}
           className="flex h-full w-full items-center justify-center gap-3 border border-neutral-200 bg-white px-12 text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] transition-all duration-150 hover:bg-stone-100"
@@ -120,8 +111,9 @@ function AppleCalendarProvider({
 function GoogleCalendarConnectedContent({
   providerConnections,
 }: {
-  providerConnections: ConnectionItem[];
+  providerConnections: LocalCalendarConnection[];
 }) {
+  const queryClient = useQueryClient();
   const { scheduleSync } = useSync();
   const {
     groups,
@@ -144,8 +136,9 @@ function GoogleCalendarConnectedContent({
         connections: providerConnections,
         connectionSourceMap,
         provider: GOOGLE_PROVIDER!,
+        queryClient,
       }),
-    [connectionSourceMap, groups, providerConnections],
+    [connectionSourceMap, groups, providerConnections, queryClient],
   );
 
   useMountEffect(() => {
@@ -178,13 +171,7 @@ function GoogleCalendarConnectedContent({
 
       <OnboardingButton
         type="button"
-        onClick={() =>
-          void openOnboardingIntegrationUrl(
-            GOOGLE_PROVIDER?.nangoIntegrationId,
-            undefined,
-            "connect",
-          )
-        }
+        onClick={() => void connectLocalCalendarProvider("google")}
         className="flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-50"
       >
         {GOOGLE_PROVIDER?.icon}
@@ -199,11 +186,13 @@ function addIntegrationMenus({
   connections,
   connectionSourceMap,
   provider,
+  queryClient,
 }: {
   groups: CalendarGroup[];
-  connections: ConnectionItem[];
+  connections: LocalCalendarConnection[];
   connectionSourceMap: Map<string, string>;
   provider: (typeof PROVIDERS)[number];
+  queryClient: ReturnType<typeof useQueryClient>;
 }) {
   return groups.map((group) => {
     const connection = connections.find(
@@ -220,22 +209,28 @@ function addIntegrationMenus({
         {
           id: `reconnect-${connection.connection_id}`,
           text: "Reconnect",
-          action: () =>
-            void openOnboardingIntegrationUrl(
-              provider.nangoIntegrationId,
-              connection.connection_id,
-              "reconnect",
-            ),
+          action: () => void connectLocalCalendarProvider(provider.id),
         },
         {
           id: `disconnect-${connection.connection_id}`,
           text: "Disconnect",
-          action: () =>
-            void openOnboardingIntegrationUrl(
-              provider.nangoIntegrationId,
-              connection.connection_id,
-              "disconnect",
-            ),
+          action: () => {
+            void calendarCommands
+              .disconnectOauthAccount(
+                provider.id as "google" | "outlook",
+                connection.connection_id,
+              )
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: ["local-calendar-connections"],
+                }),
+              )
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: ["integration-status"],
+                }),
+              );
+          },
         },
       ],
     };
@@ -245,8 +240,9 @@ function addIntegrationMenus({
 function OutlookCalendarConnectedContent({
   providerConnections,
 }: {
-  providerConnections: ConnectionItem[];
+  providerConnections: LocalCalendarConnection[];
 }) {
+  const queryClient = useQueryClient();
   const { scheduleSync } = useSync();
   const {
     groups,
@@ -269,8 +265,9 @@ function OutlookCalendarConnectedContent({
         connections: providerConnections,
         connectionSourceMap,
         provider: OUTLOOK_PROVIDER!,
+        queryClient,
       }),
-    [connectionSourceMap, groups, providerConnections],
+    [connectionSourceMap, groups, providerConnections, queryClient],
   );
 
   useMountEffect(() => {
@@ -303,13 +300,7 @@ function OutlookCalendarConnectedContent({
 
       <OnboardingButton
         type="button"
-        onClick={() =>
-          void openOnboardingIntegrationUrl(
-            OUTLOOK_PROVIDER?.nangoIntegrationId,
-            undefined,
-            "connect",
-          )
-        }
+        onClick={() => void connectLocalCalendarProvider("outlook")}
         className="flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-50"
       >
         {OUTLOOK_PROVIDER?.icon}
@@ -319,37 +310,21 @@ function OutlookCalendarConnectedContent({
   );
 }
 
-function OutlookCalendarProvider({ onSignIn }: { onSignIn: () => void }) {
-  const auth = useAuth();
-  const { isPro, isReady, upgradeToPro } = useBillingAccess();
-  const { data: connections, isPending, isError } = useConnections(isPro);
-  const [isHovered, setHovered] = useState(false);
+function OutlookCalendarProvider() {
+  const { data: connections, isPending, isError } =
+    useLocalCalendarConnections();
   const providerConnections = useMemo(
     () =>
       connections?.filter(
         (connection) =>
-          connection.integration_id === OUTLOOK_PROVIDER?.nangoIntegrationId,
+          connection.integration_id === localIntegrationId("outlook"),
       ) ?? [],
     [connections],
   );
 
   const handleConnect = useCallback(() => {
-    if (!auth.session) {
-      onSignIn();
-      return;
-    }
-
-    if (!isPro) {
-      upgradeToPro();
-      return;
-    }
-
-    void openOnboardingIntegrationUrl(
-      OUTLOOK_PROVIDER?.nangoIntegrationId,
-      undefined,
-      "connect",
-    );
-  }, [auth.session, isPro, onSignIn, upgradeToPro]);
+    void connectLocalCalendarProvider("outlook");
+  }, []);
 
   if (!OUTLOOK_PROVIDER) {
     return null;
@@ -369,95 +344,33 @@ function OutlookCalendarProvider({ onSignIn }: { onSignIn: () => void }) {
     );
   }
 
-  const isSignedIn = !!auth.session;
-
   return (
     <OnboardingButton
       onClick={handleConnect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      disabled={
-        isSignedIn && (isPending || (auth.session !== null && !isReady))
-      }
-      className={
-        isSignedIn
-          ? "gho flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
-          : "border-1 border-neutral-200 bg-gray-100 text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.01),0_10px_18px_-10px_rgba(87,83,78,0.1)] transition-all duration-150 hover:border-stone-600 hover:bg-stone-800 hover:text-white focus-visible:border-stone-600 focus-visible:bg-stone-800 focus-visible:text-white"
-      }
+      disabled={isPending}
+      className="gho flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
     >
-      {!isSignedIn ? (
-        <span className="grid items-center overflow-hidden">
-          <span className="invisible col-start-1 row-start-1 flex items-center justify-center gap-3">
-            <OnboardingCharIcon inverted />
-            Sign in to Char
-          </span>
-
-          <motion.span
-            className="col-start-1 row-start-1 flex items-center justify-center gap-3"
-            animate={{ y: isHovered ? "100%" : "0%" }}
-            transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
-          >
-            {OUTLOOK_PROVIDER.icon}
-            <div className="flex flex-col items-start justify-center">
-              <p className="text-md font-normal text-neutral-900">Outlook</p>
-              <span className="text-xs font-normal text-neutral-500">
-                Only in Pro
-              </span>
-            </div>
-          </motion.span>
-
-          <motion.span
-            className="col-start-1 row-start-1 flex items-center justify-center gap-3"
-            animate={{ y: isHovered ? "0%" : "-150%" }}
-            transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
-          >
-            <OnboardingCharIcon inverted />
-            Sign in to Char
-          </motion.span>
-        </span>
-      ) : (
-        <>
-          {OUTLOOK_PROVIDER.icon}
-          Connect Outlook
-        </>
-      )}
+      {OUTLOOK_PROVIDER.icon}
+      Connect Outlook
     </OnboardingButton>
   );
 }
 
-function GoogleCalendarProvider({ onSignIn }: { onSignIn: () => void }) {
-  const auth = useAuth();
-  const { isPro, isReady, upgradeToPro } = useBillingAccess();
-  const { data: connections, isPending, isError } = useConnections(isPro);
-  const [isHovered, setHovered] = useState(false);
+function GoogleCalendarProvider() {
+  const { data: connections, isPending, isError } =
+    useLocalCalendarConnections();
   const providerConnections = useMemo(
     () =>
       connections?.filter(
         (connection) =>
-          connection.integration_id === GOOGLE_PROVIDER?.nangoIntegrationId,
+          connection.integration_id === localIntegrationId("google"),
       ) ?? [],
     [connections],
   );
 
   const handleConnect = useCallback(() => {
-    if (!auth.session) {
-      onSignIn();
-      return;
-    }
-
-    if (!isPro) {
-      upgradeToPro();
-      return;
-    }
-
-    void openOnboardingIntegrationUrl(
-      GOOGLE_PROVIDER?.nangoIntegrationId,
-      undefined,
-      "connect",
-    );
-  }, [auth.session, isPro, onSignIn, upgradeToPro]);
+    void connectLocalCalendarProvider("google");
+  }, []);
 
   if (!GOOGLE_PROVIDER) {
     return null;
@@ -477,73 +390,21 @@ function GoogleCalendarProvider({ onSignIn }: { onSignIn: () => void }) {
     );
   }
 
-  const isSignedIn = !!auth.session;
-
   return (
     <div className="flex h-full items-center gap-3">
       <OnboardingButton
         onClick={handleConnect}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
-        disabled={
-          isSignedIn && (isPending || (auth.session !== null && !isReady))
-        }
-        className={
-          isSignedIn
-            ? "flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
-            : "border-1 border-neutral-200 bg-gray-100 text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.01),0_10px_18px_-10px_rgba(87,83,78,0.1)] transition-all duration-150 hover:border-stone-600 hover:bg-stone-800 hover:text-white focus-visible:border-stone-600 focus-visible:bg-stone-800 focus-visible:text-white"
-        }
+        disabled={isPending}
+        className="flex items-center gap-3 border border-neutral-200 bg-white text-stone-800 shadow-[0_2px_6px_rgba(87,83,78,0.08),0_10px_18px_-10px_rgba(87,83,78,0.22)] hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
       >
-        {!isSignedIn ? (
-          <span className="grid items-center overflow-hidden">
-            <span className="invisible col-start-1 row-start-1 flex items-center justify-center gap-3">
-              <OnboardingCharIcon inverted />
-              Sign in to Char
-            </span>
-
-            <motion.span
-              className="col-start-1 row-start-1 flex items-center justify-center gap-3"
-              animate={{ y: isHovered ? "100%" : "0%" }}
-              transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
-            >
-              {GOOGLE_PROVIDER.icon}
-              <div className="flex flex-col items-start justify-center">
-                <p className="text-md font-normal text-neutral-900">Google</p>
-                <span className="text-xs font-normal text-neutral-500">
-                  Only in Pro
-                </span>
-              </div>
-            </motion.span>
-
-            <motion.span
-              className="col-start-1 row-start-1 flex items-center justify-center gap-3"
-              animate={{ y: isHovered ? "0%" : "-140%" }}
-              transition={{ type: "spring", bounce: 0.15, duration: 0.35 }}
-            >
-              <OnboardingCharIcon inverted />
-              Sign in to Char
-            </motion.span>
-          </span>
-        ) : (
-          <>
-            {GOOGLE_PROVIDER.icon}
-            Connect Google Calendar
-          </>
-        )}
+        {GOOGLE_PROVIDER.icon}
+        Connect Google Calendar
       </OnboardingButton>
     </div>
   );
 }
 
-function CalendarSectionContent({
-  onContinue,
-  onSignIn,
-}: {
-  onContinue: () => void;
-  onSignIn: () => void;
-}) {
+function CalendarSectionContent({ onContinue }: { onContinue: () => void }) {
   const isMacos = platform() === "macos";
   const calendar = usePermission("calendar");
   const isAuthorized = calendar.status === "authorized";
@@ -561,12 +422,14 @@ function CalendarSectionContent({
             <AppleCalendarProvider
               isAuthorized={isAuthorized}
               isPending={calendar.isPending}
+              status={calendar.status}
+              onOpen={calendar.open}
               onRequest={calendar.request}
               onTroubleshoot={() => setShowTroubleshooting(true)}
             />
           )}
-          <GoogleCalendarProvider onSignIn={onSignIn} />
-          <OutlookCalendarProvider onSignIn={onSignIn} />
+          <GoogleCalendarProvider />
+          <OutlookCalendarProvider />
         </div>
       ) : (
         // for the case when the user has no connected calendars yet we show the calendars in a row
@@ -575,21 +438,24 @@ function CalendarSectionContent({
             <AppleCalendarProvider
               isAuthorized={isAuthorized}
               isPending={calendar.isPending}
+              status={calendar.status}
+              onOpen={calendar.open}
               onRequest={calendar.request}
               onTroubleshoot={() => setShowTroubleshooting(true)}
             />
           )}
 
-          <GoogleCalendarProvider onSignIn={onSignIn} />
-          <OutlookCalendarProvider onSignIn={onSignIn} />
+          <GoogleCalendarProvider />
+          <OutlookCalendarProvider />
         </div>
       )}
 
       {showTroubleshooting && !isAuthorized && (
-        <TroubleShootingLink
+        <AppleCalendarPermissionHelp
+          status={calendar.status}
           onRequest={calendar.request}
-          onReset={calendar.reset}
           onOpen={calendar.open}
+          onCheckAgain={calendar.checkAgain}
           isPending={calendar.isPending}
           className="text-sm text-neutral-500"
         />
@@ -604,14 +470,14 @@ function CalendarSectionContent({
 
 export function CalendarSection({
   onContinue,
-  onSignIn,
+  onSignIn: _onSignIn,
 }: {
   onContinue: () => void;
   onSignIn: () => void;
 }) {
   return (
     <SyncProvider>
-      <CalendarSectionContent onContinue={onContinue} onSignIn={onSignIn} />
+      <CalendarSectionContent onContinue={onContinue} />
     </SyncProvider>
   );
 }

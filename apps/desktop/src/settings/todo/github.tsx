@@ -15,7 +15,6 @@ import { cn } from "@hypr/utils";
 import type { TodoProvider } from "./shared";
 
 import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
 import { useConnections } from "~/auth/useConnections";
 import { openIntegrationUrl } from "~/shared/integration";
 import * as settings from "~/store/tinybase/store/settings";
@@ -37,8 +36,7 @@ export function GitHubTodoProviderContent({
   config: TodoProvider;
 }) {
   const auth = useAuth();
-  const { isPaid, upgradeToPro } = useBillingAccess();
-  const { data: connections } = useConnections(isPaid);
+  const { data: connections } = useConnections(!!auth.session);
   const [showAddInput, setShowAddInput] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
@@ -99,15 +97,7 @@ export function GitHubTodoProviderContent({
       <p className="text-xs text-neutral-400">
         Only public repositories are supported.{" "}
         {!auth.session ? (
-          <span>Sign in for private repo access.</span>
-        ) : !isPaid ? (
-          <button
-            type="button"
-            onClick={upgradeToPro}
-            className="underline transition-colors hover:text-neutral-700"
-          >
-            Upgrade for private repos.
-          </button>
+          <span>Private repo access is unavailable in this build.</span>
         ) : providerConnections.length === 0 ? (
           <button
             type="button"

@@ -56,22 +56,6 @@ export function SettingsAccount() {
   const { plan, isPaid, isTrialing, trialDaysRemaining } = useBillingAccess();
 
   const isAuthenticated = !!auth?.session;
-  const [isPending, setIsPending] = useState(false);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      setIsPending(false);
-    }
-  }, [isAuthenticated]);
-
-  const handleSignIn = useCallback(async () => {
-    setIsPending(true);
-    try {
-      await auth?.signIn();
-    } catch {
-      setIsPending(false);
-    }
-  }, [auth]);
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
@@ -89,30 +73,6 @@ export function SettingsAccount() {
   });
 
   if (!isAuthenticated) {
-    if (isPending) {
-      return (
-        <div className="flex flex-col gap-8">
-          <div>
-            <h2 className="mb-4 font-serif text-lg font-semibold">Account</h2>
-            <Container
-              title="Finish sign-in"
-              description="Complete the sign-in flow in your browser, then come back here if Char does not reconnect automatically."
-              action={
-                <Button onClick={handleSignIn} variant="outline">
-                  Reopen sign-in page
-                </Button>
-              }
-            >
-              <p className="text-xs text-neutral-500">
-                If the browser does not reopen Char, use the paste-link fallback
-                in the sign-in instruction window.
-              </p>
-            </Container>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col gap-8">
         <section className="pb-4">
@@ -120,19 +80,14 @@ export function SettingsAccount() {
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               <h2 className="font-serif text-lg font-semibold">Account</h2>
               <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium">Sign in to Char</h3>
+                <h3 className="text-sm font-medium">
+                  Cloud account unavailable
+                </h3>
                 <div className="text-sm text-neutral-600">
-                  Sign in to unlock cloud transcription and AI models, plus Pro
-                  features like integrations and sharing.
+                  This build keeps local productivity features available and
+                  hides Char cloud login.
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleSignIn}
-                className="h-10 w-fit rounded-full border-2 border-stone-600 bg-stone-800 px-6 text-sm font-medium text-white shadow-[0_4px_14px_rgba(87,83,78,0.4)] transition-all duration-200 hover:bg-stone-700"
-              >
-                Get started
-              </button>
             </div>
             <div className="shrink-0">
               <FeatureSpotlight />
@@ -140,7 +95,7 @@ export function SettingsAccount() {
           </div>
         </section>
 
-        <GuestPlanSection onSignIn={handleSignIn} />
+        <GuestPlanSection />
       </div>
     );
   }
@@ -407,7 +362,7 @@ function PlanBillingSection({
   );
 }
 
-function GuestPlanSection({ onSignIn }: { onSignIn: () => Promise<void> }) {
+function GuestPlanSection() {
   const renderAction = (action: TierAction, compact: boolean) => {
     if (action == null) return null;
 
@@ -423,33 +378,10 @@ function GuestPlanSection({ onSignIn }: { onSignIn: () => Promise<void> }) {
       );
     }
 
-    const label =
-      action.targetPlan === "lite"
-        ? "Sign in for Lite"
-        : action.targetPlan === "pro"
-          ? "Sign in for Pro"
-          : "Sign in";
-
-    if (compact) {
-      return (
-        <button
-          type="button"
-          onClick={onSignIn}
-          className="text-xs font-medium text-stone-600 transition-colors hover:text-stone-800"
-        >
-          Sign in
-        </button>
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        onClick={onSignIn}
-        className="flex h-8 w-full cursor-pointer items-center justify-center rounded-full bg-linear-to-t from-stone-600 to-stone-500 text-xs font-medium text-white shadow-md transition-all hover:scale-[102%] hover:shadow-lg active:scale-[98%]"
-      >
-        {label}
-      </button>
+    return compact ? null : (
+      <div className="flex h-8 w-full items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 text-xs text-neutral-400">
+        Cloud only
+      </div>
     );
   };
 
@@ -458,7 +390,8 @@ function GuestPlanSection({ onSignIn }: { onSignIn: () => Promise<void> }) {
       <div className="mb-4 flex flex-col gap-1">
         <h2 className="font-serif text-lg font-semibold">Plans</h2>
         <p className="text-sm text-neutral-600">
-          Compare Free, Lite, and Pro before you sign in.
+          Free local features are enabled in this build. Char cloud plans are
+          hidden.
         </p>
       </div>
 

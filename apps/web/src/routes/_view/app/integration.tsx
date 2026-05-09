@@ -2,12 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { flowSearchSchema } from "@/functions/desktop-flow";
-import { useBilling } from "@/hooks/use-billing";
 
-import { IntegrationPageLayout } from "./-integration-ui";
 import { ConnectFlow } from "./-integrations-connect-flow";
 import { DisconnectFlow } from "./-integrations-disconnect-flow";
-import { UpgradePrompt } from "./-integrations-upgrade-prompt";
 
 const commonSearch = {
   integration_id: z.string().default("google-calendar"),
@@ -59,28 +56,9 @@ export const Route = createFileRoute("/_view/app/integration")({
 
 function Component() {
   const search = Route.useSearch();
-  const billing = useBilling();
 
   if (search.action === "disconnect") {
     return <DisconnectFlow />;
-  }
-
-  if (!billing.isReady) {
-    return (
-      <IntegrationPageLayout>
-        <p className="text-neutral-500">Loading...</p>
-      </IntegrationPageLayout>
-    );
-  }
-
-  if (!billing.isPaid) {
-    return (
-      <UpgradePrompt
-        integrationId={search.integration_id}
-        flow={search.flow}
-        scheme={search.scheme ?? "hyprnote"}
-      />
-    );
   }
 
   return <ConnectFlow />;

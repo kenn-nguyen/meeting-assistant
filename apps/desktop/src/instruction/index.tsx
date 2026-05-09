@@ -189,8 +189,8 @@ function SignInInstruction({ onBack }: { onBack: () => void }) {
 
   return (
     <InstructionShell
-      title="Sign in to your account"
-      description="Complete sign-in in your browser, then return to Char."
+      title="Connect cloud account"
+      description="Complete the cloud account flow in your browser, then return to Char."
       onBack={onBack}
     >
       {showCallbackInput ? (

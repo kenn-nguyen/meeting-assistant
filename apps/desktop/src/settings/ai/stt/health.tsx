@@ -76,6 +76,16 @@ export function useConnectionHealth(): HealthStatus {
     if (serverStatus === "ready" && conn) {
       return { status: "success" };
     }
+    if (serverStatus === "error") {
+      const message =
+        local.data?.status === "error" ? local.data.message : undefined;
+
+      return {
+        status: "error",
+        message:
+          message ?? "Could not start the local speech-to-text model.",
+      };
+    }
     return {
       status: "error",
       message: "Could not connect to the local speech-to-text model.",

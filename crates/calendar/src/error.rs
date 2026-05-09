@@ -19,6 +19,8 @@ pub enum Error {
     HttpClient(#[from] reqwest::Error),
     #[error("api error: {0}")]
     Api(String),
+    #[error("provider api error: {0}")]
+    ProviderApi(String),
     #[error("apple calendar error: {0}")]
     Apple(String),
 }

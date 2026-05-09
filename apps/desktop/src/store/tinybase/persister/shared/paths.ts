@@ -4,6 +4,7 @@ import { commands as settingsCommands } from "@hypr/plugin-settings";
 
 export const SESSION_META_FILE = "_meta.json";
 export const SESSION_TRANSCRIPT_FILE = "transcript.json";
+export const SESSION_TRANSCRIPT_MARKDOWN_FILE = "transcript.md";
 export const SESSION_NOTE_EXTENSION = ".md";
 export const SESSION_MEMO_FILE = "_memo.md";
 export const CHAT_MESSAGES_FILE = "messages.json";

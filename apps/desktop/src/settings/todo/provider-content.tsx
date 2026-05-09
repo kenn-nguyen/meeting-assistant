@@ -11,7 +11,6 @@ import { GitHubTodoProviderContent } from "./github";
 import type { TodoProvider } from "./shared";
 
 import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
 import { useConnections } from "~/auth/useConnections";
 import {
   AccessPermissionRow,
@@ -38,8 +37,7 @@ function OAuthTodoProviderContent({ config }: { config: TodoProvider }) {
   }
 
   const auth = useAuth();
-  const { isPaid, upgradeToPro } = useBillingAccess();
-  const { data: connections, isError } = useConnections(isPaid);
+  const { data: connections, isError } = useConnections(!!auth.session);
 
   const providerConnections = useMemo(
     () =>
@@ -73,23 +71,9 @@ function OAuthTodoProviderContent({ config }: { config: TodoProvider }) {
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            Sign in to connect {config.displayName}
+            Cloud account login is hidden in this build.
           </TooltipContent>
         </Tooltip>
-      </div>
-    );
-  }
-
-  if (!isPaid) {
-    return (
-      <div className="pt-1 pb-2">
-        <button
-          type="button"
-          onClick={upgradeToPro}
-          className="cursor-pointer text-xs text-neutral-600 underline transition-colors hover:text-neutral-900"
-        >
-          Upgrade to connect
-        </button>
       </div>
     );
   }
@@ -225,7 +209,6 @@ function AppleRemindersProviderContent() {
         isPending={reminders.isPending}
         onOpen={reminders.open}
         onRequest={reminders.request}
-        onReset={reminders.reset}
       />
     );
   }

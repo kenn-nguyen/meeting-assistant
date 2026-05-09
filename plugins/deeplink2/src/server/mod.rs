@@ -122,6 +122,16 @@ fn ui_content(deep_link: &DeepLink) -> (bool, &'static str, &'static str) {
             "Connection failed",
             "Something went wrong. Please close this window and try again.",
         ),
+        DeepLink::CalendarOAuthCallback(s) if s.error.is_none() => (
+            true,
+            "Calendar connected",
+            "Click the button below to return to the app.",
+        ),
+        DeepLink::CalendarOAuthCallback(_) => (
+            false,
+            "Calendar connection failed",
+            "Something went wrong. Please close this window and try again.",
+        ),
     }
 }
 

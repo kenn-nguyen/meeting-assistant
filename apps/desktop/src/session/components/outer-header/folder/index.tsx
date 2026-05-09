@@ -14,13 +14,11 @@ import {
   TooltipTrigger,
 } from "@hypr/ui/components/ui/tooltip";
 
-import { useBillingAccess } from "~/auth/billing";
 import { FolderBreadcrumb } from "~/shared/ui/folder-breadcrumb";
 import * as main from "~/store/tinybase/store/main";
 import { useTabs } from "~/store/zustand/tabs";
 
 export function FolderChain({ sessionId }: { sessionId: string }) {
-  const { isPro } = useBillingAccess();
   const folderId = main.UI.useCell(
     "sessions",
     sessionId,
@@ -36,7 +34,7 @@ export function FolderChain({ sessionId }: { sessionId: string }) {
     <Breadcrumb className="ml-1.5 w-full min-w-0">
       <BreadcrumbList className="w-full flex-nowrap gap-0.5 overflow-hidden font-mono text-xs text-neutral-700">
         <FolderIcon className="mr-1 h-3 w-3 shrink-0" />
-        <RenderFolderBreadcrumb folderId={folderId} isPro={isPro} />
+        <RenderFolderBreadcrumb folderId={folderId} />
       </BreadcrumbList>
     </Breadcrumb>
   );
@@ -62,10 +60,8 @@ function UnassignedFolderBreadcrumb() {
 
 function RenderFolderBreadcrumb({
   folderId,
-  isPro,
 }: {
   folderId: string;
-  isPro: boolean;
 }) {
   const openNew = useTabs((state) => state.openNew);
 
@@ -77,20 +73,16 @@ function RenderFolderBreadcrumb({
       }
       renderCrumb={({ id, name }) => (
         <BreadcrumbItem className="overflow-hidden">
-          {isPro ? (
-            <BreadcrumbLink asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => openNew({ type: "folders", id })}
-                className="truncate px-0 text-neutral-600 hover:text-black"
-              >
-                {name}
-              </Button>
-            </BreadcrumbLink>
-          ) : (
-            <span className="truncate text-neutral-600">{name}</span>
-          )}
+          <BreadcrumbLink asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openNew({ type: "folders", id })}
+              className="truncate px-0 text-neutral-600 hover:text-black"
+            >
+              {name}
+            </Button>
+          </BreadcrumbLink>
         </BreadcrumbItem>
       )}
     />

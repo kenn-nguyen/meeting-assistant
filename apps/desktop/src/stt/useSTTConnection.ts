@@ -14,6 +14,27 @@ import { providerRowId } from "~/settings/ai/shared";
 import { type ProviderId } from "~/settings/ai/stt/shared";
 import * as settings from "~/store/tinybase/store/settings";
 
+type LocalConnectionState =
+  | { status: "not_downloaded"; connection: null }
+  | { status: "loading"; connection: null }
+  | { status: "error"; connection: null; message: string }
+  | {
+      status: "ready";
+      connection: {
+        provider: ProviderId;
+        model: string;
+        baseUrl: string;
+        apiKey: string;
+      };
+    };
+
+function getLocalModelLoadError(message?: string | null) {
+  const detail = message?.trim();
+  return detail
+    ? `Model failed to load. Redownload model. (${detail})`
+    : "Model failed to load. Redownload model.";
+}
+
 export const useSTTConnection = () => {
   const auth = useAuth();
   const billing = useBillingAccess();
@@ -42,27 +63,84 @@ export const useSTTConnection = () => {
     enabled: current_stt_provider === "hyprnote",
     queryKey: ["stt-connection", isLocalModel, current_stt_model],
     refetchInterval: 1000,
-    queryFn: async () => {
+    queryFn: async (): Promise<LocalConnectionState | null> => {
       if (!isLocalModel || !current_stt_model) {
         return null;
       }
 
+      const model = current_stt_model as LocalModel;
+
       const downloaded = await localSttCommands.isModelDownloaded(
-        current_stt_model as LocalModel,
+        model,
       );
-      if (downloaded.status !== "ok" || !downloaded.data) {
+      if (downloaded.status !== "ok") {
+        return {
+          status: "error",
+          connection: null,
+          message: downloaded.error,
+        };
+      }
+      if (!downloaded.data) {
         return { status: "not_downloaded" as const, connection: null };
       }
 
       const serverResult = await localSttCommands.getServerForModel(
-        current_stt_model as LocalModel,
+        model,
       );
 
       if (serverResult.status !== "ok") {
-        return null;
+        return {
+          status: "error",
+          connection: null,
+          message: serverResult.error,
+        };
       }
 
-      const server = serverResult.data;
+      let server = serverResult.data;
+
+      if (server?.status === "ready" && server.url) {
+        return {
+          status: "ready" as const,
+          connection: {
+            provider: current_stt_provider!,
+            model: current_stt_model,
+            baseUrl: server.url,
+            apiKey: "",
+          },
+        };
+      }
+
+      if (server?.status === "failed" && server.model === current_stt_model) {
+        return {
+          status: "error",
+          connection: null,
+          message: getLocalModelLoadError(server.error),
+        };
+      }
+
+      if (!server || server.model !== current_stt_model) {
+        const startResult = await localSttCommands.startServer(model);
+        if (startResult.status !== "ok") {
+          return {
+            status: "error",
+            connection: null,
+            message: startResult.error,
+          };
+        }
+
+        const nextServerResult = await localSttCommands.getServerForModel(model);
+        if (nextServerResult.status === "ok") {
+          server = nextServerResult.data;
+        }
+      }
+
+      if (server?.status === "failed" && server.model === current_stt_model) {
+        return {
+          status: "error",
+          connection: null,
+          message: getLocalModelLoadError(server.error),
+        };
+      }
 
       if (server?.status === "ready" && server.url) {
         return {
@@ -77,7 +155,7 @@ export const useSTTConnection = () => {
       }
 
       return {
-        status: server?.status ?? "loading",
+        status: "loading",
         connection: null,
       };
     },

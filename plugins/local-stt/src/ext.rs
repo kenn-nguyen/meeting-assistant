@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, future::Future, path::PathBuf, sync::Arc};
 
 use ractor::{ActorRef, call_t, registry};
 use tauri_specta::Event;
@@ -118,6 +118,13 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
     pub async fn start_server(&self, model: LocalModel) -> Result<String, crate::Error> {
         Self::ensure_stt_model(&model)?;
 
+        let server_start_lock = {
+            let state = self.manager.state::<crate::SharedState>();
+            let guard = state.lock().await;
+            guard.server_start_lock.clone()
+        };
+        let _server_start_guard = server_start_lock.lock().await;
+
         let server_type = match &model {
             LocalModel::Am(_) => ServerType::External,
             LocalModel::Whisper(_) | LocalModel::Cactus(_) => ServerType::Internal,
@@ -126,12 +133,19 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
             }
         };
 
-        let current_info = match server_type {
+        let current_info = match &model {
+            #[cfg(feature = "whisper-cpp")]
+            LocalModel::Whisper(_) => internal_health().await,
+            #[cfg(not(feature = "whisper-cpp"))]
+            LocalModel::Whisper(_) => None,
             #[cfg(target_arch = "aarch64")]
-            ServerType::Internal => internal2_health().await,
+            LocalModel::Cactus(_) => internal2_health().await,
             #[cfg(not(target_arch = "aarch64"))]
-            ServerType::Internal => None,
-            ServerType::External => external_health().await,
+            LocalModel::Cactus(_) => None,
+            LocalModel::Am(_) => external_health().await,
+            LocalModel::GgufLlm(_) | LocalModel::CactusLlm(_) => {
+                return Err(crate::Error::UnsupportedModelType);
+            }
         };
 
         if let Some(info) = current_info.as_ref()
@@ -146,7 +160,7 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
             ));
         }
 
-        if matches!(server_type, ServerType::External) && !self.is_model_downloaded(&model).await? {
+        if !self.is_model_downloaded(&model).await? {
             return Err(crate::Error::ModelNotDownloaded);
         }
 
@@ -158,6 +172,12 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
 
         match server_type {
             ServerType::Internal => {
+                #[cfg(feature = "whisper-cpp")]
+                if let LocalModel::Whisper(whisper_model) = model {
+                    let cache_dir = self.models_dir();
+                    return start_internal_server(&supervisor, cache_dir, whisper_model).await;
+                }
+
                 #[cfg(target_arch = "aarch64")]
                 {
                     use hypr_transcribe_cactus::CactusConfig;
@@ -223,20 +243,19 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
     ) -> Result<Option<ServerInfo>, crate::Error> {
         Self::ensure_stt_model(model)?;
 
-        let server_type = match model {
-            LocalModel::Am(_) => ServerType::External,
-            LocalModel::Whisper(_) | LocalModel::Cactus(_) => ServerType::Internal,
+        let info = match model {
+            #[cfg(feature = "whisper-cpp")]
+            LocalModel::Whisper(_) => internal_health().await,
+            #[cfg(not(feature = "whisper-cpp"))]
+            LocalModel::Whisper(_) => None,
+            #[cfg(target_arch = "aarch64")]
+            LocalModel::Cactus(_) => internal2_health().await,
+            #[cfg(not(target_arch = "aarch64"))]
+            LocalModel::Cactus(_) => None,
+            LocalModel::Am(_) => external_health().await,
             LocalModel::GgufLlm(_) | LocalModel::CactusLlm(_) => {
                 return Err(crate::Error::UnsupportedModelType);
             }
-        };
-
-        let info = match server_type {
-            #[cfg(target_arch = "aarch64")]
-            ServerType::Internal => internal2_health().await,
-            #[cfg(not(target_arch = "aarch64"))]
-            ServerType::Internal => None,
-            ServerType::External => external_health().await,
         };
 
         Ok(info)
@@ -249,18 +268,21 @@ impl<'a, R: Runtime, M: Manager<R>> LocalStt<'a, R, M> {
             url: None,
             status: ServerStatus::Unreachable,
             model: None,
+            error: None,
         });
         #[cfg(not(target_arch = "aarch64"))]
         let internal_info = ServerInfo {
             url: None,
             status: ServerStatus::Unreachable,
             model: None,
+            error: None,
         };
 
         let external_info = external_health().await.unwrap_or(ServerInfo {
             url: None,
             status: ServerStatus::Unreachable,
             model: None,
+            error: None,
         });
 
         Ok([
@@ -358,9 +380,8 @@ async fn start_internal2_server(
     .await
     .map_err(|e| crate::Error::ServerStartFailed(e.to_string()))?;
 
-    internal2_health()
+    wait_for_health_url(internal2_health)
         .await
-        .and_then(|info| info.url)
         .ok_or_else(|| crate::Error::ServerStartFailed("empty_health".to_string()))
 }
 
@@ -380,9 +401,8 @@ async fn start_internal_server(
     .await
     .map_err(|e| crate::Error::ServerStartFailed(e.to_string()))?;
 
-    internal_health()
+    wait_for_health_url(internal_health)
         .await
-        .and_then(|info| info.url)
         .ok_or_else(|| crate::Error::ServerStartFailed("empty_health".to_string()))
 }
 
@@ -428,10 +448,27 @@ async fn start_external_server<R: Runtime, T: Manager<R>>(
     .await
     .map_err(|e| crate::Error::ServerStartFailed(e.to_string()))?;
 
-    external_health()
+    wait_for_health_url(external_health)
         .await
-        .and_then(|info| info.url)
         .ok_or_else(|| crate::Error::ServerStartFailed("empty_health".to_string()))
+}
+
+async fn wait_for_health_url<F, Fut>(mut health: F) -> Option<String>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<ServerInfo>>,
+{
+    for _ in 0..50 {
+        if let Some(info) = health().await
+            && let Some(url) = info.url
+        {
+            return Some(url);
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    None
 }
 
 #[cfg(target_arch = "aarch64")]

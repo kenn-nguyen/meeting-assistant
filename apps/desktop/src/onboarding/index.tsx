@@ -8,7 +8,6 @@ import { commands as analyticsCommands } from "@hypr/plugin-analytics";
 import { commands as sfxCommands } from "@hypr/plugin-sfx";
 import { cn } from "@hypr/utils";
 
-import { LoginSection } from "./account";
 import { CalendarSection } from "./calendar";
 import {
   getInitialStep,
@@ -21,7 +20,6 @@ import { FolderLocationSection } from "./folder-location";
 import { PermissionsSection } from "./permissions";
 import { OnboardingSection } from "./shared";
 
-import { useAuth } from "~/auth";
 import { StandardTabWrapper } from "~/shared/main";
 import { type TabItem, TabItemBase } from "~/shared/tabs";
 import { StandaloneWindowShell } from "~/shared/window-shell";
@@ -117,10 +115,8 @@ function OnboardingScreenContent({
   headerDragRegion?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const auth = useAuth();
   const [isMuted, setIsMuted] = useState(false);
   const [currentStep, setCurrentStep] = useState(getInitialStep);
-  const [didSkipLogin, setDidSkipLogin] = useState(false);
   const onboardingVideoRef = useRef<HTMLVideoElement>(null);
   const currentPlatform = platform();
 
@@ -133,11 +129,6 @@ function OnboardingScreenContent({
     const prev = getPrevStep(currentStep);
     if (prev) setCurrentStep(prev);
   }, [currentStep]);
-
-  const handleCalendarSignIn = useCallback(() => {
-    setCurrentStep("login");
-    void auth.signIn();
-  }, [auth]);
 
   useEffect(() => {
     void analyticsCommands.event({
@@ -246,32 +237,6 @@ function OnboardingScreenContent({
             </OnboardingSection>
 
             <OnboardingSection
-              title="Create account"
-              description="Sign in to unlock powerful Al models, sync across devices, personalization, and workflow integrations."
-              completedTitle={
-                auth.session
-                  ? "Signed in"
-                  : didSkipLogin
-                    ? "Skipped"
-                    : "Account"
-              }
-              status={getStepStatus("login", currentStep)}
-              onBack={goBack}
-              onNext={goNext}
-              onSkip={() => {
-                setDidSkipLogin(true);
-                void analyticsCommands.event({
-                  event: "onboarding_login_skipped",
-                });
-              }}
-            >
-              <LoginSection
-                onContinue={goNext}
-                onSkip={() => setDidSkipLogin(true)}
-              />
-            </OnboardingSection>
-
-            <OnboardingSection
               title="Connect calendar"
               description="Char will sync your calendar to get meeting reminders"
               completedTitle="Calendar connected"
@@ -279,10 +244,7 @@ function OnboardingScreenContent({
               onBack={goBack}
               onNext={goNext}
             >
-              <CalendarSection
-                onContinue={goNext}
-                onSignIn={handleCalendarSignIn}
-              />
+              <CalendarSection onContinue={goNext} onSignIn={() => {}} />
             </OnboardingSection>
 
             <OnboardingSection

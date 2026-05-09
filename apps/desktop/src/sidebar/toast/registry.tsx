@@ -22,7 +22,6 @@ type ToastRegistryParams = {
   activeDownloads: DownloadProgress[];
   localSttStatus: ServerStatus | null;
   isLocalSttModel: boolean;
-  onSignIn: () => void | Promise<void>;
   onOpenLLMSettings: () => void;
   onOpenSTTSettings: () => void;
 };
@@ -42,7 +41,6 @@ export function createToastRegistry({
   activeDownloads,
   localSttStatus,
   isLocalSttModel,
-  onSignIn,
   onOpenLLMSettings,
   onOpenSTTSettings,
 }: ToastRegistryParams): ToastRegistryEntry[] {
@@ -84,8 +82,8 @@ export function createToastRegistry({
         id: "local-stt-unreachable",
         description: (
           <>
-            <strong className="text-red-600">Could not connect</strong> to the
-            local speech-to-text model. Please check your settings.
+            <strong className="text-red-600">Model failed to load.</strong>{" "}
+            Redownload the local speech-to-text model.
           </>
         ),
         primaryAction: {
@@ -97,7 +95,7 @@ export function createToastRegistry({
       },
       condition: () =>
         isLocalSttModel &&
-        localSttStatus === "unreachable" &&
+        (localSttStatus === "unreachable" || localSttStatus === "failed") &&
         !hasActiveDownload &&
         !isAiTranscriptionTabActive,
     },
@@ -146,12 +144,12 @@ export function createToastRegistry({
             className="size-5"
           />
         ),
-        title: "Sign in required",
+        title: "Char cloud unavailable",
         description:
-          "You have Char Pro models configured. Please sign in to use them.",
+          "This build hides Char login. Choose a local model in settings.",
         primaryAction: {
-          label: "Sign in",
-          onClick: onSignIn,
+          label: "Check settings",
+          onClick: onOpenSTTSettings,
         },
         dismissible: true,
       },
@@ -171,13 +169,8 @@ export function createToastRegistry({
             className="size-5"
           />
         ),
-        title: "Keep the magic going",
-        description:
-          "Transcription stays free. Pro unlocks other magic you'll love.",
-        primaryAction: {
-          label: "Upgrade to Pro",
-          onClick: onSignIn,
-        },
+        title: "Local mode",
+        description: "Char cloud login is hidden in this build.",
         dismissible: true,
       },
       // suppress until auth resolves to avoid flash on startup

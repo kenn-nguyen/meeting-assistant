@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { cn } from "@hypr/utils";
 
@@ -21,10 +21,12 @@ export function DuringSessionAccessory({
   sessionId,
   isFinalizing = false,
   isExpanded = false,
+  transcriptHeight = 300,
 }: {
   sessionId: string;
   isFinalizing?: boolean;
   isExpanded?: boolean;
+  transcriptHeight?: number;
 }) {
   if (isFinalizing) {
     return (
@@ -40,15 +42,23 @@ export function DuringSessionAccessory({
     );
   }
 
-  return <LiveTranscriptFooter sessionId={sessionId} isExpanded={isExpanded} />;
+  return (
+    <LiveTranscriptFooter
+      sessionId={sessionId}
+      isExpanded={isExpanded}
+      transcriptHeight={transcriptHeight}
+    />
+  );
 }
 
 function LiveTranscriptFooter({
   sessionId,
   isExpanded = false,
+  transcriptHeight,
 }: {
   sessionId: string;
   isExpanded?: boolean;
+  transcriptHeight: number;
 }) {
   const store = main.UI.useStore(main.STORE_ID);
   const segments = useLiveTranscriptSegments(sessionId);
@@ -93,6 +103,7 @@ function LiveTranscriptFooter({
         ) : (
           <LiveTranscriptContent
             isExpanded={isExpanded}
+            transcriptHeight={transcriptHeight}
             previewText={previewText}
             scrollRef={scrollRef}
             segments={segments}
@@ -123,6 +134,7 @@ function RecordOnlyFooter({
 
 function LiveTranscriptContent({
   isExpanded,
+  transcriptHeight,
   previewText,
   scrollRef,
   segments,
@@ -130,12 +142,29 @@ function LiveTranscriptContent({
   speakerLabelManager,
 }: {
   isExpanded: boolean;
+  transcriptHeight: number;
   previewText: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   segments: Segment[];
   labelContext: ReturnType<typeof defaultRenderLabelContext> | undefined;
   speakerLabelManager: SpeakerLabelManager;
 }) {
+  useEffect(() => {
+    if (!isExpanded) {
+      return;
+    }
+
+    const container = scrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [isExpanded, scrollRef, segments]);
+
   if (!isExpanded) {
     return <CollapsedFooterMessage message={previewText ?? "Listening..."} />;
   }
@@ -143,7 +172,8 @@ function LiveTranscriptContent({
   return (
     <div
       ref={scrollRef}
-      className="flex max-h-[180px] flex-col gap-1 overflow-y-auto px-3 pt-2 pb-2.5"
+      className="flex flex-col gap-1 overflow-y-auto px-3 pt-2 pb-2.5"
+      style={{ height: transcriptHeight }}
     >
       {segments.length === 0 ? (
         <span className="py-4 text-center text-xs text-neutral-400">

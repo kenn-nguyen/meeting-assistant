@@ -98,7 +98,7 @@ function Component() {
                 Integrations & Workflows
               </h1>
               <p className="mx-auto max-w-3xl text-lg leading-relaxed text-neutral-600 sm:text-xl">
-                Google Calendar is available today on Char Pro. More
+                Google Calendar is available today on Char Free. More
                 integrations and no-code workflows are in progress.
               </p>
               <div className="mt-8">

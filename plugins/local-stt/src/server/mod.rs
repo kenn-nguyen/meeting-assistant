@@ -23,6 +23,7 @@ pub enum ServerStatus {
     Unreachable,
     Loading,
     Ready,
+    Failed,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -30,4 +31,5 @@ pub struct ServerInfo {
     pub url: Option<String>,
     pub status: ServerStatus,
     pub model: Option<crate::LocalModel>,
+    pub error: Option<String>,
 }

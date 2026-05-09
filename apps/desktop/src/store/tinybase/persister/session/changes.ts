@@ -36,6 +36,7 @@ export function getChangedSessionIds(
   tables: TablesContent,
   changedTables: ChangedTables,
 ): SessionChangeResult | undefined {
+  const changedHumanIds = Object.keys(changedTables.humans ?? {});
   const result = getChangedIds(tables, changedTables, [
     { table: "sessions", extractId: (id) => id },
     {
@@ -53,12 +54,36 @@ export function getChangedSessionIds(
     },
   ]);
 
-  if (!result) {
+  if (changedHumanIds.length === 0) {
+    if (!result) {
+      return undefined;
+    }
+
+    return {
+      changedSessionIds: result.changedIds,
+      hasUnresolvedDeletions: result.hasUnresolvedDeletions,
+    };
+  }
+
+  const changedIds = new Set(result?.changedIds);
+  for (const mapping of Object.values(tables.mapping_session_participant ?? {})) {
+    const humanId = mapping?.human_id;
+    const sessionId = mapping?.session_id;
+    if (
+      typeof humanId === "string" &&
+      typeof sessionId === "string" &&
+      changedHumanIds.includes(humanId)
+    ) {
+      changedIds.add(sessionId);
+    }
+  }
+
+  if (changedIds.size === 0 && !result?.hasUnresolvedDeletions) {
     return undefined;
   }
 
   return {
-    changedSessionIds: result.changedIds,
-    hasUnresolvedDeletions: result.hasUnresolvedDeletions,
+    changedSessionIds: changedIds,
+    hasUnresolvedDeletions: result?.hasUnresolvedDeletions ?? false,
   };
 }

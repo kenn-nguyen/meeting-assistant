@@ -4,6 +4,7 @@ import {
   RefreshCw,
   SquareIcon,
   TrashIcon,
+  Upload,
 } from "lucide-react";
 import { type ReactNode, useCallback, useRef } from "react";
 
@@ -29,11 +30,13 @@ export function PostSessionAccessory({
   hasAudio,
   hasTranscript,
   isTranscriptExpanded,
+  transcriptHeight = 300,
 }: {
   sessionId: string;
   hasAudio: boolean;
   hasTranscript: boolean;
   isTranscriptExpanded: boolean;
+  transcriptHeight?: number;
 }) {
   const screen = useTranscriptScreen({ sessionId });
   const isBatching = screen.kind === "running_batch";
@@ -71,6 +74,7 @@ export function PostSessionAccessory({
           hasAudio={hasAudio}
           hasTranscript={hasTranscript}
           isExpanded={isTranscriptExpanded}
+          transcriptHeight={transcriptHeight}
         />
       ) : null}
       {timeline}
@@ -84,12 +88,14 @@ function TranscriptPanel({
   hasAudio,
   hasTranscript,
   isExpanded,
+  transcriptHeight,
 }: {
   sessionId: string;
   screen: ReturnType<typeof useTranscriptScreen>;
   hasAudio: boolean;
   hasTranscript: boolean;
   isExpanded: boolean;
+  transcriptHeight: number;
 }) {
   if (screen.kind === "running_batch") {
     return (
@@ -98,13 +104,18 @@ function TranscriptPanel({
         screen={screen}
         hasTranscript={hasTranscript}
         isExpanded={isExpanded}
+        transcriptHeight={transcriptHeight}
       />
     );
   }
 
   if (hasTranscript) {
     return (
-      <TranscriptReadyPanel sessionId={sessionId} isExpanded={isExpanded} />
+      <TranscriptReadyPanel
+        sessionId={sessionId}
+        isExpanded={isExpanded}
+        transcriptHeight={transcriptHeight}
+      />
     );
   }
 
@@ -113,6 +124,7 @@ function TranscriptPanel({
       sessionId={sessionId}
       hasAudio={hasAudio}
       isExpanded={isExpanded}
+      transcriptHeight={transcriptHeight}
     />
   );
 }
@@ -144,6 +156,7 @@ function BatchingTranscriptPanel({
   screen,
   hasTranscript,
   isExpanded,
+  transcriptHeight,
 }: {
   sessionId: string;
   screen: {
@@ -153,6 +166,7 @@ function BatchingTranscriptPanel({
   };
   hasTranscript: boolean;
   isExpanded: boolean;
+  transcriptHeight: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stopTranscription = useListener((state) => state.stopTranscription);
@@ -188,11 +202,17 @@ function BatchingTranscriptPanel({
       </div>
 
       {hasTranscript ? (
-        <div className="h-[300px] overflow-y-auto px-3">
+        <div
+          className="overflow-y-auto px-3"
+          style={{ height: getTranscriptBodyHeight(transcriptHeight) }}
+        >
           <Transcript sessionId={sessionId} scrollRef={scrollRef} />
         </div>
       ) : (
-        <div className="flex h-[120px] flex-col items-center justify-center gap-2">
+        <div
+          className="flex flex-col items-center justify-center gap-2"
+          style={{ height: getTranscriptBodyHeight(transcriptHeight) }}
+        >
           <Spinner size={24} />
           {typeof percentage === "number" && percentage > 0 && (
             <p className="text-xl font-medium text-neutral-500 tabular-nums">
@@ -303,12 +323,15 @@ function StopTranscriptionButton({
 function TranscriptReadyPanel({
   sessionId,
   isExpanded,
+  transcriptHeight,
 }: {
   sessionId: string;
   isExpanded: boolean;
+  transcriptHeight: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const regenerate = useRegenerateTranscript(sessionId);
+  const { uploadAudio } = useUploadFile(sessionId);
   const { audioExists, deleteRecording, isDeletingRecording } =
     AudioPlayer.useAudioPlayer();
 
@@ -351,6 +374,18 @@ function TranscriptReadyPanel({
             <RefreshCw size={10} />
             Regenerate
           </button>
+          <button
+            type="button"
+            onClick={uploadAudio}
+            className={cn([
+              "flex items-center gap-1 rounded px-1.5 py-0.5",
+              "text-[11px] font-medium text-neutral-500",
+              "transition-colors hover:bg-neutral-200/60 hover:text-neutral-700",
+            ])}
+          >
+            <Upload size={10} />
+            Upload audio
+          </button>
         </div>
         {audioExists ? (
           <button
@@ -374,7 +409,10 @@ function TranscriptReadyPanel({
         ) : null}
       </div>
 
-      <div className="h-[300px] overflow-y-auto px-3">
+      <div
+        className="overflow-y-auto px-3"
+        style={{ height: getTranscriptBodyHeight(transcriptHeight) }}
+      >
         <Transcript sessionId={sessionId} scrollRef={scrollRef} />
       </div>
     </TranscriptCard>
@@ -385,10 +423,12 @@ function TranscriptEmptyPanel({
   sessionId,
   hasAudio,
   isExpanded,
+  transcriptHeight,
 }: {
   sessionId: string;
   hasAudio: boolean;
   isExpanded: boolean;
+  transcriptHeight: number;
 }) {
   const screen = useTranscriptScreen({ sessionId });
   const { uploadAudio } = useUploadFile(sessionId);
@@ -402,33 +442,35 @@ function TranscriptEmptyPanel({
 
   return (
     <TranscriptCard>
-      <div className="flex items-center justify-between px-4 py-3">
-        {error ? (
-          <span className="text-xs text-red-500">{error}</span>
-        ) : (
-          <span className="text-xs text-neutral-400">No transcript yet</span>
-        )}
+      <div className="flex flex-col" style={{ height: transcriptHeight }}>
+        <div className="flex items-center justify-between px-4 py-3">
+          {error ? (
+            <span className="text-xs text-red-500">{error}</span>
+          ) : (
+            <span className="text-xs text-neutral-400">No transcript yet</span>
+          )}
 
-        <div className="flex items-center gap-1.5">
-          {hasAudio && (
+          <div className="flex items-center gap-1.5">
+            {hasAudio && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-neutral-500"
+                onClick={regenerate}
+              >
+                <RefreshCw size={12} />
+                Generate
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 text-xs text-neutral-500"
-              onClick={regenerate}
+              className="h-7 text-xs text-neutral-500"
+              onClick={uploadAudio}
             >
-              <RefreshCw size={12} />
-              Generate
+              Upload audio
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-neutral-500"
-            onClick={uploadAudio}
-          >
-            Upload audio
-          </Button>
+          </div>
         </div>
       </div>
     </TranscriptCard>
@@ -441,4 +483,8 @@ function TranscriptCard({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
+}
+
+function getTranscriptBodyHeight(transcriptHeight: number) {
+  return Math.max(80, transcriptHeight - 34);
 }

@@ -120,6 +120,9 @@ export function useOAuthCalendarSelection(config: CalendarProvider) {
     void queryClient.invalidateQueries({
       queryKey: ["integration-status"],
     });
+    void queryClient.invalidateQueries({
+      queryKey: ["local-calendar-connections"],
+    });
     scheduleSync();
   }, [cancelDebouncedSync, queryClient, scheduleSync]);
 

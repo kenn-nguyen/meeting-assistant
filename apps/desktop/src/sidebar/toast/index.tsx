@@ -62,10 +62,6 @@ export function ToastArea({
   );
   const setToastActionTarget = useToastAction((state) => state.setTarget);
 
-  const handleSignIn = useCallback(async () => {
-    await auth?.signIn();
-  }, [auth]);
-
   const openAiTab = useCallback(
     (tab: "intelligence" | "transcription") => {
       if (currentTab?.type === "settings") {
@@ -104,7 +100,6 @@ export function ToastArea({
         activeDownloads,
         localSttStatus,
         isLocalSttModel,
-        onSignIn: handleSignIn,
         onOpenLLMSettings: handleOpenLLMSettings,
         onOpenSTTSettings: handleOpenSTTSettings,
       }),
@@ -123,7 +118,6 @@ export function ToastArea({
       activeDownloads,
       localSttStatus,
       isLocalSttModel,
-      handleSignIn,
       handleOpenLLMSettings,
       handleOpenSTTSettings,
     ],

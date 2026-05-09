@@ -20,7 +20,6 @@ import { NotificationsMenuContent } from "./notification";
 import { MenuItem, ProfileFacehash } from "./shared";
 
 import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
 import { useAutoCloser } from "~/shared/hooks/useAutoCloser";
 import * as main from "~/store/tinybase/store/main";
 import { useTabs } from "~/store/zustand/tabs";
@@ -38,7 +37,6 @@ export function ProfileSection({ onExpandChange }: ProfileSectionProps = {}) {
   const mainViewRef = useRef<HTMLDivElement | null>(null);
   const openNew = useTabs((state) => state.openNew);
   const auth = useAuth();
-  const { isPro } = useBillingAccess();
 
   const isAuthenticated = !!auth?.session;
 
@@ -137,16 +135,12 @@ export function ProfileSection({ onExpandChange }: ProfileSectionProps = {}) {
   ]);
 
   const menuItems = [
-    ...(isPro
-      ? [
-          {
-            icon: FolderOpenIcon,
-            label: "Folders",
-            onClick: handleClickFolders,
-            badge: <Kbd className={kbdClass}>⌘ ⇧ L</Kbd>,
-          },
-        ]
-      : []),
+    {
+      icon: FolderOpenIcon,
+      label: "Folders",
+      onClick: handleClickFolders,
+      badge: <Kbd className={kbdClass}>⌘ ⇧ L</Kbd>,
+    },
     {
       icon: UsersIcon,
       label: "Contacts",

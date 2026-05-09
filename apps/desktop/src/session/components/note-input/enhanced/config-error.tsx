@@ -41,7 +41,7 @@ function getMessageForStatus(status: LLMConnectionStatus): string {
   }
 
   if (status.status === "error" && status.reason === "unauthenticated") {
-    return "You need to sign in to use Char's language model";
+    return "Char cloud language models are unavailable in this build. Configure a local language model instead";
   }
 
   if (status.status === "error" && status.reason === "not_pro") {

@@ -311,7 +311,7 @@ const SETTINGS_LISTENERS: SettingsListeners = {
     const model = store.getValue("current_stt_model") as string | undefined;
 
     if (provider === "hyprnote" && model && model !== "cloud") {
-      localSttCommands.startServer(model as LocalModel).catch(console.error);
+      startLocalSttServer(model);
     }
   },
   current_stt_model: (store) => {
@@ -321,7 +321,7 @@ const SETTINGS_LISTENERS: SettingsListeners = {
     const model = store.getValue("current_stt_model") as string | undefined;
 
     if (provider === "hyprnote" && model && model !== "cloud") {
-      localSttCommands.startServer(model as LocalModel).catch(console.error);
+      startLocalSttServer(model);
     } else {
       localSttCommands.stopServer(null).catch(console.error);
     }
@@ -330,6 +330,35 @@ const SETTINGS_LISTENERS: SettingsListeners = {
     analyticsCommands.setDisabled(!newValue).catch(console.error);
   },
 };
+
+function startLocalSttServer(model: string) {
+  void localSttCommands
+    .isModelDownloaded(model as LocalModel)
+    .then((downloaded) => {
+      if (downloaded.status === "error") {
+        console.error(
+          `[local-stt] Failed to check local STT model download for ${model}`,
+          downloaded.error,
+        );
+        return;
+      }
+
+      if (!downloaded.data) {
+        return;
+      }
+
+      return localSttCommands.startServer(model as LocalModel);
+    })
+    .then((result) => {
+      if (result?.status === "error") {
+        console.error(
+          `[local-stt] Failed to start local STT server for ${model}`,
+          result.error,
+        );
+      }
+    })
+    .catch(console.error);
+}
 
 function registerSettingsListeners(store: Store): () => void {
   const cleanups: string[] = [];

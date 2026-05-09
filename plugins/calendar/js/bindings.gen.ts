@@ -59,6 +59,41 @@ async createEvent(provider: CalendarProviderType, input: CreateEventInput) : Pro
 },
 async parseMeetingLink(text: string) : Promise<string | null> {
     return await TAURI_INVOKE("plugin:calendar|parse_meeting_link", { text });
+},
+async beginOauth(provider: CalendarProviderType, redirectUri: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|begin_oauth", { provider, redirectUri }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async beginLoopbackOauth(provider: CalendarProviderType) : Promise<Result<LoopbackOAuthStart, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|begin_loopback_oauth", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async completeOauth(provider: CalendarProviderType, code: string, state: string, redirectUri: string) : Promise<Result<LocalCalendarAccount, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|complete_oauth", { provider, code, state, redirectUri }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listOauthAccounts() : Promise<LocalCalendarAccount[]> {
+    return await TAURI_INVOKE("plugin:calendar|list_oauth_accounts");
+},
+async disconnectOauthAccount(provider: CalendarProviderType, connectionId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin:calendar|disconnect_oauth_account", { provider, connectionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -160,6 +195,9 @@ email: string | null;
  */
 is_current_user: boolean }
 export type EventStatus = "confirmed" | "tentative" | "cancelled"
+export type LocalCalendarAccount = { provider: CalendarProviderType; connection_id: string; account_label: string | null; status: LocalCalendarAccountStatus; last_error_description: string | null; updated_at: string | null }
+export type LocalCalendarAccountStatus = "connected" | "reconnect_required"
+export type LoopbackOAuthStart = { auth_url: string; redirect_uri: string }
 export type ProviderConnectionIds = { provider: CalendarProviderType; connection_ids: string[] }
 
 /** tauri-specta globals **/

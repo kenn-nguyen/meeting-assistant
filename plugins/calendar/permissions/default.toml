@@ -9,4 +9,9 @@ permissions = [
     "allow-open-calendar",
     "allow-create-event",
     "allow-parse-meeting-link",
+    "allow-begin-oauth",
+    "allow-begin-loopback-oauth",
+    "allow-complete-oauth",
+    "allow-list-oauth-accounts",
+    "allow-disconnect-oauth-account",
 ]

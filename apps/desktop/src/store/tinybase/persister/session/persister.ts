@@ -16,6 +16,7 @@ import { createMultiTableDirPersister } from "~/store/tinybase/persister/factori
 import {
   SESSION_META_FILE,
   SESSION_NOTE_EXTENSION,
+  SESSION_TRANSCRIPT_MARKDOWN_FILE,
 } from "~/store/tinybase/persister/shared";
 import type { Store } from "~/store/tinybase/store/main";
 
@@ -45,6 +46,7 @@ export function createSessionPersister(store: Store) {
         markerFile: SESSION_META_FILE,
         extension: SESSION_NOTE_EXTENSION.slice(1),
         keepIds: Object.keys(tables.enhanced_notes ?? {}),
+        ignoreFilenames: [SESSION_TRANSCRIPT_MARKDOWN_FILE],
       },
     ],
     loadAll: loadAllSessionData,
@@ -72,6 +74,7 @@ export function createSessionPersister(store: Store) {
         changedSessionIds,
       );
       const transcriptOps = buildTranscriptSaveOps(
+        store,
         tables,
         dataDir,
         changedSessionIds,

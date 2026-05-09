@@ -25,6 +25,7 @@ pub struct State {
     pub stt_supervisor: Option<ActorRef<DynamicSupervisorMsg>>,
     pub supervisor_handle: Option<SupervisorHandle>,
     pub model_downloader: ModelDownloadManager<LocalModel>,
+    pub server_start_lock: std::sync::Arc<tokio::sync::Mutex<()>>,
 }
 
 #[derive(Default)]
@@ -75,6 +76,7 @@ pub fn init<R: tauri::Runtime>(options: InitOptions) -> tauri::plugin::TauriPlug
                 stt_supervisor: None,
                 supervisor_handle: None,
                 model_downloader,
+                server_start_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
             }));
 
             app.manage(state.clone());

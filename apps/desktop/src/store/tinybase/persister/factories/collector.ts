@@ -17,6 +17,7 @@ import {
 import { commands as fs2Commands } from "@hypr/plugin-fs2";
 import { extractChangedTables } from "@hypr/tinybase-utils";
 
+import { buildTranscriptMarkdownDocuments } from "~/stt/transcript-markdown";
 import {
   createFileListener,
   type NotifyListenerHandle,
@@ -27,6 +28,7 @@ import {
   type JsonValue,
   type SaveResult,
   type TablesContent,
+  type TranscriptMarkdownWriteItem,
 } from "~/store/tinybase/persister/shared/types";
 import { StoreOrMergeableStore } from "~/store/tinybase/store/shared";
 
@@ -59,6 +61,7 @@ type OrphanCleanupFilesRecursive = {
   markerFile: string;
   extension: string;
   keepIds: string[];
+  ignoreFilenames?: string[];
 };
 
 export type OrphanCleanupConfig =
@@ -145,6 +148,7 @@ export function createCollectorPersister<Schemas extends OptionalSchemas>(
       if (operations.length > 0) {
         const jsonItems: Array<[JsonValue, string]> = [];
         const documentItems: Array<[ParsedDocument, string]> = [];
+        const transcriptMarkdownItems: TranscriptMarkdownWriteItem[] = [];
         const deletePaths: string[] = [];
 
         for (const op of operations) {
@@ -152,12 +156,17 @@ export function createCollectorPersister<Schemas extends OptionalSchemas>(
             jsonItems.push([op.content as JsonValue, op.path]);
           } else if (op.type === "write-document-batch") {
             documentItems.push(...op.items);
+          } else if (op.type === "write-transcript-markdown-batch") {
+            transcriptMarkdownItems.push(...op.items);
           } else if (op.type === "delete") {
             deletePaths.push(...op.paths);
           }
         }
 
         await writeJsonBatch(jsonItems, options.label);
+        documentItems.push(
+          ...(await buildTranscriptMarkdownDocuments(transcriptMarkdownItems)),
+        );
         await writeDocumentBatch(documentItems, options.label);
         await deleteFiles(deletePaths, options.label);
       }
@@ -278,7 +287,10 @@ async function countItemsOnDisk(config: OrphanCleanupConfig): Promise<number> {
         null,
       );
       if (result.status === "ok") {
-        return Object.keys(result.data.files).length;
+        return Object.keys(result.data.files).filter(
+          (path) =>
+            !config.ignoreFilenames?.includes(path.split("/").pop() ?? ""),
+        ).length;
       }
     }
   } catch {

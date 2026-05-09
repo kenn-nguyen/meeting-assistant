@@ -8,7 +8,6 @@ import {
 } from "@hypr/ui/components/ui/tooltip";
 
 import { useAuth } from "~/auth";
-import { useBillingAccess } from "~/auth/billing";
 import { useConnections } from "~/auth/useConnections";
 import { openIntegrationUrl } from "~/shared/integration";
 
@@ -46,8 +45,7 @@ export function MessengerIntegrations() {
 
 function MessengerProviderRow({ provider }: { provider: LinkProvider }) {
   const auth = useAuth();
-  const { isPaid, upgradeToPro } = useBillingAccess();
-  const { data: connections } = useConnections(isPaid);
+  const { data: connections } = useConnections(!!auth.session);
 
   const providerConnections = useMemo(
     () =>
@@ -103,16 +101,10 @@ function MessengerProviderRow({ provider }: { provider: LinkProvider }) {
                 Connect
               </span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Sign in to connect</TooltipContent>
+            <TooltipContent side="bottom">
+              Cloud account login is hidden in this build.
+            </TooltipContent>
           </Tooltip>
-        ) : !isPaid ? (
-          <button
-            type="button"
-            onClick={upgradeToPro}
-            className="cursor-pointer text-xs text-neutral-600 underline transition-colors hover:text-neutral-900"
-          >
-            Upgrade
-          </button>
         ) : reconnectRequired ? (
           <>
             <button

@@ -121,6 +121,31 @@ describe("getChangedSessionIds", () => {
     });
   });
 
+  describe("human changes", () => {
+    test("refreshes sessions that reference changed humans", () => {
+      const tables: TablesContent = {
+        mapping_session_participant: {
+          "participant-1": {
+            session_id: "session-1",
+            human_id: "human-1",
+          },
+          "participant-2": {
+            session_id: "session-2",
+            human_id: "human-2",
+          },
+        },
+      };
+      const changedTables: ChangedTables = {
+        humans: { "human-1": {} },
+      };
+
+      const result = getChangedSessionIds(tables, changedTables);
+
+      expect(result?.changedSessionIds).toEqual(new Set(["session-1"]));
+      expect(result?.hasUnresolvedDeletions).toBe(false);
+    });
+  });
+
   describe("transcript changes", () => {
     test("resolves session id from transcript", () => {
       const tables: TablesContent = {

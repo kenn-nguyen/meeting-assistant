@@ -63,6 +63,7 @@ export function usePermission(type: Permission) {
     open,
     request,
     reset,
+    checkAgain: status.refetch,
   };
 }
 

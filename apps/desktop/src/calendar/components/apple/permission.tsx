@@ -3,6 +3,8 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckIcon,
+  RefreshCwIcon,
+  SettingsIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -23,7 +25,7 @@ export function ApplePermissions() {
         isPending={calendar.isPending}
         onOpen={calendar.open}
         onRequest={calendar.request}
-        onReset={calendar.reset}
+        onCheckAgain={calendar.checkAgain}
         showActionButton={false}
       />
     </div>
@@ -60,7 +62,7 @@ export function AccessPermissionRow({
   isPending,
   onOpen,
   onRequest,
-  onReset,
+  onCheckAgain,
   showActionButton = true,
 }: {
   title: string;
@@ -68,11 +70,12 @@ export function AccessPermissionRow({
   isPending: boolean;
   onOpen: () => void;
   onRequest: () => void;
-  onReset: () => void;
+  onCheckAgain?: () => void;
   showActionButton?: boolean;
 }) {
   const isAuthorized = status === "authorized";
   const isDenied = status === "denied";
+  const isNeverRequested = status === "neverRequested" || !status;
 
   const handleButtonClick = () => {
     if (isAuthorized || isDenied) {
@@ -82,10 +85,16 @@ export function AccessPermissionRow({
     }
   };
 
+  const description = isAuthorized
+    ? `${title} access is enabled.`
+    : isDenied
+      ? `${title} access is off. Enable it in System Settings, then check again.`
+      : `Allow Char to read your ${title.toLowerCase()} from this Mac.`;
+
   return (
     <div
       className={cn([
-        "flex gap-4 py-2",
+        "flex gap-4 py-2 text-sm",
         showActionButton
           ? "items-center justify-between"
           : "items-start justify-start",
@@ -101,12 +110,45 @@ export function AccessPermissionRow({
           {!isAuthorized && <AlertCircleIcon className="size-4" />}
           <h3 className="text-sm font-medium">{title}</h3>
         </div>
-        <TroubleShootingLink
-          onRequest={onRequest}
-          onReset={onReset}
-          onOpen={onOpen}
-          isPending={isPending}
-        />
+        <p className="text-xs leading-5 text-neutral-600">{description}</p>
+        {isDenied ? (
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onOpen}
+              disabled={isPending}
+              className="h-7 gap-1.5 px-2 text-xs"
+            >
+              <SettingsIcon className="size-3.5" />
+              Open System Settings
+            </Button>
+            {onCheckAgain ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onCheckAgain}
+                disabled={isPending}
+                className="h-7 gap-1.5 px-2 text-xs"
+              >
+                <RefreshCwIcon className="size-3.5" />
+                Check again
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {isNeverRequested ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            disabled={isPending}
+            className="mt-2 text-xs text-neutral-500 underline transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Open System Settings
+          </button>
+        ) : null}
       </div>
       {showActionButton && (
         <Button
@@ -126,11 +168,69 @@ export function AccessPermissionRow({
         >
           {isAuthorized ? (
             <CheckIcon className="size-5" />
+          ) : isDenied ? (
+            <SettingsIcon className="size-5" />
           ) : (
             <ArrowRightIcon className="size-5" />
           )}
         </Button>
       )}
+    </div>
+  );
+}
+
+export function AppleCalendarPermissionHelp({
+  status,
+  isPending,
+  onOpen,
+  onRequest,
+  onCheckAgain,
+  className,
+}: {
+  status: PermissionStatus | undefined;
+  isPending: boolean;
+  onOpen: () => void;
+  onRequest: () => void;
+  onCheckAgain?: () => void;
+  className?: string;
+}) {
+  const isDenied = status === "denied";
+  const isNeverRequested = status === "neverRequested" || !status;
+
+  if (status === "authorized") {
+    return null;
+  }
+
+  return (
+    <div className={cn(["text-xs leading-5 text-neutral-600", className])}>
+      {isDenied ? (
+        <>
+          Calendar access is off. Enable Char in System Settings, then{" "}
+          {onCheckAgain ? (
+            <ActionLink onClick={onCheckAgain} disabled={isPending}>
+              check again
+            </ActionLink>
+          ) : (
+            "check again"
+          )}
+          .{" "}
+          <ActionLink onClick={onOpen} disabled={isPending}>
+            Open System Settings
+          </ActionLink>
+        </>
+      ) : isNeverRequested ? (
+        <>
+          Allow Char to read Apple Calendar from this Mac.{" "}
+          <ActionLink onClick={onRequest} disabled={isPending}>
+            Allow access
+          </ActionLink>{" "}
+          or{" "}
+          <ActionLink onClick={onOpen} disabled={isPending}>
+            open System Settings
+          </ActionLink>
+          .
+        </>
+      ) : null}
     </div>
   );
 }

@@ -122,6 +122,7 @@ impl Actor for InternalSTTActor {
                     url: Some(state.base_url.clone()),
                     status: ServerStatus::Ready,
                     model: Some(crate::LocalModel::Whisper(state.model.clone())),
+                    error: None,
                 };
 
                 if let Err(e) = reply_port.send(info) {

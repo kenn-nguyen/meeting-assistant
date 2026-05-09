@@ -2,13 +2,17 @@ import { sep } from "@tauri-apps/api/path";
 
 import type { TranscriptJson, TranscriptWithData } from "@hypr/plugin-fs-sync";
 
+import { buildRenderTranscriptRequestFromStore } from "~/stt/render-transcript";
 import {
   buildSessionPath,
   iterateTableRows,
   SESSION_TRANSCRIPT_FILE,
+  SESSION_TRANSCRIPT_MARKDOWN_FILE,
   type TablesContent,
+  type TranscriptMarkdownWriteItem,
   type WriteOperation,
 } from "~/store/tinybase/persister/shared";
+import type { Store } from "~/store/tinybase/store/main";
 
 type BuildContext = {
   tables: TablesContent;
@@ -17,6 +21,7 @@ type BuildContext = {
 };
 
 export function buildTranscriptSaveOps(
+  store: Store,
   tables: TablesContent,
   dataDir: string,
   changedSessionIds?: Set<string>,
@@ -29,7 +34,7 @@ export function buildTranscriptSaveOps(
     changedSessionIds,
   );
 
-  return buildOperations(ctx, sessionsToProcess);
+  return buildOperations(store, ctx, sessionsToProcess);
 }
 
 function groupTranscriptsBySession(
@@ -73,12 +78,15 @@ function filterByChangedSessions(
 }
 
 function buildOperations(
+  store: Store,
   ctx: BuildContext,
   sessions: Array<[string, TranscriptWithData[]]>,
 ): WriteOperation[] {
   const { tables, dataDir } = ctx;
+  const operations: WriteOperation[] = [];
+  const markdownItems: TranscriptMarkdownWriteItem[] = [];
 
-  return sessions.map(([sessionId, transcripts]) => {
+  for (const [sessionId, transcripts] of sessions) {
     const session = tables.sessions?.[sessionId];
     const sessionDir = buildSessionPath(
       dataDir,
@@ -87,10 +95,29 @@ function buildOperations(
     );
 
     const content: TranscriptJson = { transcripts };
-    return {
+    operations.push({
       type: "write-json" as const,
       path: [sessionDir, SESSION_TRANSCRIPT_FILE].join(sep()),
       content,
-    };
-  });
+    });
+
+    const transcriptIds = transcripts.map((transcript) => transcript.id);
+    const request = buildRenderTranscriptRequestFromStore(store, transcriptIds);
+    if (request) {
+      markdownItems.push({
+        sessionId,
+        request,
+        path: [sessionDir, SESSION_TRANSCRIPT_MARKDOWN_FILE].join(sep()),
+      });
+    }
+  }
+
+  if (markdownItems.length > 0) {
+    operations.push({
+      type: "write-transcript-markdown-batch",
+      items: markdownItems,
+    });
+  }
+
+  return operations;
 }

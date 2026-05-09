@@ -1,7 +1,6 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { arch } from "@tauri-apps/plugin-os";
 import { Check, Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   commands as localSttCommands,
@@ -146,6 +145,25 @@ export function SelectProviderAndModel() {
     rememberModel(current_stt_provider, model);
     handleSelectModel(model);
   };
+
+  useEffect(() => {
+    if (!selectedProvider || !current_stt_model || selectedModels.length === 0) {
+      return;
+    }
+
+    if (selectedModels.some((model) => model.id === current_stt_model)) {
+      return;
+    }
+
+    const nextModel = getPreferredProviderModel(undefined, selectedModels);
+    if (!nextModel) {
+      return;
+    }
+
+    rememberModel(selectedProvider, nextModel);
+    handleSelectModel(nextModel);
+  }, [current_stt_model, handleSelectModel, selectedModels, selectedProvider]);
+
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-md font-serif font-semibold">Model being used</h3>
@@ -302,6 +320,7 @@ type ModelEntry = {
   id: string;
   isDownloaded: boolean;
   displayName?: string;
+  description?: string;
   category?: ModelCategory;
 };
 
@@ -318,14 +337,6 @@ function useConfiguredMapping(): Record<
     settings.STORE_ID,
   );
 
-  const targetArch = useQuery({
-    queryKey: ["target-arch"],
-    queryFn: () => arch(),
-    staleTime: Infinity,
-  });
-
-  const isAppleSilicon = targetArch.data === "aarch64";
-
   const supportedModels = useQuery({
     queryKey: ["list-supported-models"],
     queryFn: async () => {
@@ -335,11 +346,10 @@ function useConfiguredMapping(): Record<
     staleTime: Infinity,
   });
 
-  const cactusModels =
-    supportedModels.data?.filter((m) => m.model_type === "cactus") ?? [];
+  const localModels = supportedModels.data ?? [];
 
-  const cactusDownloaded = useQueries({
-    queries: [...cactusModels.map((m) => sttModelQueries.isDownloaded(m.key))],
+  const localDownloaded = useQueries({
+    queries: [...localModels.map((m) => sttModelQueries.isDownloaded(m.key))],
   });
 
   return Object.fromEntries(
@@ -366,21 +376,27 @@ function useConfiguredMapping(): Record<
           { id: "cloud", isDownloaded: billing.isPaid, category: "latest" },
         ];
 
-        if (isAppleSilicon) {
-          const sorted = [...cactusModels].sort((a) =>
-            String(a.key).includes("parakeet") ? -1 : 1,
-          );
-          sorted.forEach((model) => {
-            const i = cactusModels.indexOf(model);
-            const isRecommended = String(model.key).includes("parakeet");
-            models.push({
-              id: model.key,
-              isDownloaded: cactusDownloaded[i]?.data ?? false,
-              displayName: model.display_name,
-              category: isRecommended ? "latest" : "experimental",
-            });
+        const sorted = [...localModels].sort((a, b) => {
+          const aRecommended =
+            a.model_type === "cactus" && String(a.key).includes("parakeet");
+          const bRecommended =
+            b.model_type === "cactus" && String(b.key).includes("parakeet");
+          return Number(bRecommended) - Number(aRecommended);
+        });
+
+        sorted.forEach((model) => {
+          const i = localModels.indexOf(model);
+          const isRecommended =
+            model.model_type === "cactus" &&
+            String(model.key).includes("parakeet");
+          models.push({
+            id: model.key,
+            isDownloaded: localDownloaded[i]?.data ?? false,
+            displayName: model.display_name,
+            description: model.description,
+            category: isRecommended ? "latest" : "experimental",
           });
-        }
+        });
 
         return [provider.id, { configured: true, models }];
       }
@@ -390,14 +406,15 @@ function useConfiguredMapping(): Record<
       }
 
       return [
-        provider.id,
-        {
-          configured: true,
-          models: provider.models.map((model) => ({
-            id: model,
-            isDownloaded: true,
-          })),
-        },
+      provider.id,
+      {
+        configured: true,
+        models: provider.models.map((model) => ({
+          id: model,
+          isDownloaded: true,
+          description: displayModelId(model),
+        })),
+      },
       ];
     }),
   ) as Record<
@@ -425,11 +442,19 @@ function ModelSelectItem({
   const billing = useBillingAccess();
 
   const label = model.displayName ?? displayModelId(model.id);
+  const description = model.description;
 
   if (model.isDownloaded) {
     return (
       <SelectItem key={model.id} value={model.id}>
-        {label}
+        <div className="flex max-w-[36rem] flex-col gap-0.5 py-0.5">
+          <span>{label}</span>
+          {description && (
+            <span className="text-[11px] leading-snug text-neutral-500">
+              {description}
+            </span>
+          )}
+        </div>
       </SelectItem>
     );
   }
@@ -461,7 +486,14 @@ function ModelSelectItem({
         "group",
       ])}
     >
-      <span className="text-neutral-400">{label}</span>
+      <div className="flex max-w-[30rem] flex-col gap-0.5">
+        <span className="text-neutral-400">{label}</span>
+        {description && (
+          <span className="text-[11px] leading-snug text-neutral-400">
+            {description}
+          </span>
+        )}
+      </div>
       {isDownloading ? (
         <span
           className={cn([

@@ -11,6 +11,7 @@ import {
   SESSION_META_FILE,
   SESSION_NOTE_EXTENSION,
   SESSION_TRANSCRIPT_FILE,
+  SESSION_TRANSCRIPT_MARKDOWN_FILE,
 } from "~/store/tinybase/persister/shared";
 import {
   err,
@@ -45,7 +46,10 @@ async function processFiles(
   const mdPromises: Promise<void>[] = [];
   for (const [path, content] of Object.entries(files)) {
     if (!content) continue;
-    if (path.endsWith(SESSION_NOTE_EXTENSION)) {
+    if (
+      path.endsWith(SESSION_NOTE_EXTENSION) &&
+      !path.endsWith(SESSION_TRANSCRIPT_MARKDOWN_FILE)
+    ) {
       mdPromises.push(processMdFile(path, content, result));
     }
   }
